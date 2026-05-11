@@ -15,8 +15,8 @@ let aiInstance: GoogleGenAI | null = null;
 function getAI() {
   if (!aiInstance) {
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error("GEMINI_API_KEY is not defined");
+    if (!apiKey || apiKey === "MY_GEMINI_API_KEY" || apiKey === "") {
+      throw new Error("GEMINI_API_KEY is not configured or is a placeholder");
     }
     aiInstance = new GoogleGenAI({ apiKey });
   }
@@ -89,7 +89,6 @@ async function startServer() {
           config: {
             tools: [{ googleSearch: {} }],
             toolConfig: { includeServerSideToolInvocations: true },
-            thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH },
             responseMimeType: "application/json",
             responseSchema: {
               type: Type.OBJECT,
@@ -139,7 +138,6 @@ async function startServer() {
           model: "gemini-3.1-pro-preview",
           contents: prompt,
           config: {
-            thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH },
             responseMimeType: "application/json",
             responseSchema: {
               type: Type.OBJECT,
