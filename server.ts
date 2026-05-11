@@ -1,9 +1,8 @@
-import "dotenv/config";
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
-import { GoogleGenAI, ThinkingLevel, Type } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import AdmZip from "adm-zip";
 import fs from "fs";
 
@@ -15,9 +14,17 @@ let aiInstance: GoogleGenAI | null = null;
 function getAI() {
   if (!aiInstance) {
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey || apiKey === "MY_GEMINI_API_KEY" || apiKey === "") {
-      throw new Error("GEMINI_API_KEY is not configured or is a placeholder");
+    if (!apiKey) {
+      console.error("CRITICAL: GEMINI_API_KEY is not defined in process.env");
+      throw new Error("GEMINI_API_KEY is missing. Please ensure it is set in the AI Studio Settings/Secrets menu.");
     }
+    
+    // Log safe parts of the key for debugging
+    const keyHint = apiKey.length > 8 
+      ? `${apiKey.substring(0, 4)}...${apiKey.substring(apiKey.length - 4)}` 
+      : "***";
+    console.log(`GEMINI_API_KEY detected. Length: ${apiKey.length}, Hint: ${keyHint}`);
+    
     aiInstance = new GoogleGenAI({ apiKey });
   }
   return aiInstance;
@@ -84,7 +91,7 @@ async function startServer() {
         Return your response STRICTLY in the requested JSON format.`;
 
         const response = await ai.models.generateContent({
-          model: "gemini-3.1-pro-preview",
+          model: "gemini-3-flash-preview",
           contents: prompt,
           config: {
             tools: [{ googleSearch: {} }],
@@ -135,7 +142,7 @@ async function startServer() {
         Return ONLY JSON.`;
 
         const response = await ai.models.generateContent({
-          model: "gemini-3.1-pro-preview",
+          model: "gemini-3-flash-preview",
           contents: prompt,
           config: {
             responseMimeType: "application/json",

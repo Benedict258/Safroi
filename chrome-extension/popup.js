@@ -4,95 +4,107 @@ const BASE_URL = "https://ais-dev-wndzybiqm3ibh34ikg4x5u-337842956729.europe-wes
 document.addEventListener('DOMContentLoaded', async () => {
     const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
     const currentTab = tabs[0];
-    if (!currentTab || !currentTab.url.startsWith('http')) return;
+    
+    if (!currentTab || !currentTab.url || !currentTab.url.startsWith('http')) {
+        showError("Please open a website to analyze its policies.");
+        return;
+    }
 
-    const url = new URL(currentTab.url);
-    const domain = url.hostname;
+    const url = currentTab.url;
+    const domain = new URL(url).hostname;
 
-    // Load existing data from storage
+    // Check storage first for recent analysis
     chrome.storage.local.get([domain], (result) => {
-        if (result[domain]) {
+        if (result[domain] && (Date.now() - result[domain].timestamp < 3600000)) { // 1 hour cache
             displayResult(result[domain]);
         } else {
-            // Trigger initial analysis if not found
-            triggerAnalysis(currentTab.url, domain);
+            startAnalysis(url, domain);
         }
     });
 
-    document.getElementById('analyzeBtn').addEventListener('click', () => {
-        triggerAnalysis(currentTab.url, domain);
-    });
-
+    // Event Listeners
+    document.getElementById('reanalyzeBtn').addEventListener('click', () => startAnalysis(url, domain));
+    document.getElementById('retryBtn').addEventListener('click', () => startAnalysis(url, domain));
     document.getElementById('dashboardBtn').addEventListener('click', () => {
-        const dashboardUrl = `${BASE_URL}/?url=${encodeURIComponent(currentTab.url)}`;
-        chrome.tabs.create({ url: dashboardUrl });
+        chrome.tabs.create({ url: `${BASE_URL}/?url=${encodeURIComponent(url)}` });
     });
 });
 
-async function triggerAnalysis(url, domain) {
-    const loading = document.getElementById('loading');
-    const content = document.getElementById('content');
-    loading.style.display = 'block';
-    content.style.display = 'none';
-
+async function startAnalysis(url, domain) {
+    showLoading();
+    
     try {
         const response = await fetch(`${BASE_URL}/api/analyze`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url })
+            body: JSON.stringify({ type: 'website', value: url })
         });
-        
-        if (!response.ok) throw new Error("Failed");
+
+        if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.error || "Analysis failed");
+        }
+
         const data = await response.json();
         
-        // Save to storage
+        // Save to cache
         chrome.storage.local.set({ [domain]: data });
         displayResult(data);
-    } catch (e) {
-        console.error(e);
-        document.getElementById('summaryText').textContent = "Failed to analyze this site. Please check your connection.";
-    } finally {
-        loading.style.display = 'none';
-        content.style.display = 'block';
+    } catch (err) {
+        console.error("Analysis error:", err);
+        showError(err.message);
     }
 }
 
+function showLoading() {
+    document.getElementById('loading').style.display = 'block';
+    document.getElementById('results').style.display = 'none';
+    document.getElementById('error').style.display = 'none';
+}
+
+function showError(msg) {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('results').style.display = 'none';
+    document.getElementById('error').style.display = 'block';
+    document.getElementById('errorText').textContent = msg;
+}
+
 function displayResult(data) {
-    document.getElementById('result').style.display = 'block';
-    document.getElementById('scoreValue').textContent = data.risk_score;
-    document.getElementById('summaryText').textContent = data.summary;
-    
-    // Severity styling
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('error').style.display = 'none';
+    document.getElementById('results').style.display = 'block';
+
+    const scoreValue = document.getElementById('scoreValue');
     const severityText = document.getElementById('severityText');
-    const statusDot = document.getElementById('statusDot');
-    
+    const summaryText = document.getElementById('summaryText');
+    const riskList = document.getElementById('riskList');
+
+    scoreValue.textContent = data.risk_score;
+    summaryText.textContent = data.summary;
+
+    // Reset styles
     severityText.className = 'severity';
-    statusDot.className = 'status-dot';
     
     if (data.risk_score <= 3) {
         severityText.textContent = 'Safe';
         severityText.classList.add('low');
-        statusDot.classList.add('dot-green');
     } else if (data.risk_score <= 7) {
         severityText.textContent = 'Caution';
         severityText.classList.add('medium');
-        statusDot.classList.add('dot-yellow');
     } else {
-        severityText.textContent = 'Risky';
+        severityText.textContent = 'High Risk';
         severityText.classList.add('high');
-        statusDot.classList.add('dot-red');
     }
 
-    // Risks
-    const list = document.getElementById('riskList');
-    list.innerHTML = '';
+    // Populate Risks
+    riskList.innerHTML = '';
     (data.risks || []).slice(0, 3).forEach(risk => {
         const div = document.createElement('div');
-        div.className = `risk-item ${risk.severity}`;
+        div.className = 'risk-item';
         div.innerHTML = `
             <div class="risk-title">${risk.title}</div>
             <div class="risk-desc">${risk.description}</div>
         `;
-        list.appendChild(div);
+        riskList.appendChild(div);
     });
 }
