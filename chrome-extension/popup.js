@@ -19,8 +19,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     const resultsView = document.getElementById('results');
     const errorView = document.getElementById('error');
 
-    // Get initial toggle state
-    chrome.storage.local.get(['scanningEnabled'], (result) => {
+    // Get initial toggle state and auth status
+    chrome.storage.local.get(['scanningEnabled', 'auth_user'], (result) => {
+        updateViewBasedOnAuth(result);
+    });
+
+    // Listen for storage changes (for live auth sync)
+    chrome.storage.onChanged.addListener((changes, area) => {
+        if (area === 'local' && changes.auth_user) {
+            chrome.storage.local.get(['scanningEnabled', 'auth_user'], (result) => {
+                updateViewBasedOnAuth(result);
+            });
+        }
+    });
+
+    function updateViewBasedOnAuth(result) {
+        if (!result.auth_user || !result.auth_user.loggedIn) {
+            showLogin();
+            return;
+        }
+
         const enabled = result.scanningEnabled !== false; // Default to true
         scanToggle.checked = enabled;
         if (!enabled) {
@@ -28,17 +46,29 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else {
             initializeAnalysis();
         }
+    }
+
+    // Login Listener
+    document.getElementById('loginBtn').addEventListener('click', () => {
+        chrome.tabs.create({ url: `${BASE_URL}` });
     });
 
     // Toggle Listener
     scanToggle.addEventListener('change', (e) => {
         const enabled = e.target.checked;
         chrome.storage.local.set({ scanningEnabled: enabled });
-        if (enabled) {
-            initializeAnalysis();
-        } else {
-            showIntro();
-        }
+        
+        chrome.storage.local.get(['auth_user'], (res) => {
+            if (!res.auth_user || !res.auth_user.loggedIn) {
+                showLogin();
+                return;
+            }
+            if (enabled) {
+                initializeAnalysis();
+            } else {
+                showIntro();
+            }
+        });
     });
 
     async function initializeAnalysis() {
@@ -53,18 +83,26 @@ document.addEventListener('DOMContentLoaded', async () => {
         const url = currentTab.url;
         const domain = new URL(url).hostname;
 
-        // Check storage first for recent analysis
-        chrome.storage.local.get([domain], (result) => {
-            if (result[domain] && (Date.now() - result[domain].timestamp < 3600000)) { // 1 hour cache
-                displayResult(result[domain]);
-            } else {
-                startAnalysis(url, domain);
+        // One more check for auth before starting analysis
+        chrome.storage.local.get(['auth_user'], (res) => {
+            if (!res.auth_user || !res.auth_user.loggedIn) {
+                showLogin();
+                return;
             }
+
+            // Check storage first for recent analysis
+            chrome.storage.local.get([domain], (result) => {
+                if (result[domain] && (Date.now() - result[domain].timestamp < 3600000)) { // 1 hour cache
+                    displayResult(result[domain]);
+                } else {
+                    startAnalysis(url, domain);
+                }
+            });
         });
 
         // Update action listeners with current context
-        document.getElementById('reanalyzeBtn').onclick = () => startAnalysis(url, domain);
-        document.getElementById('retryBtn').onclick = () => startAnalysis(url, domain);
+        document.getElementById('reanalyzeBtn').onclick = () => initializeAnalysis();
+        document.getElementById('retryBtn').onclick = () => initializeAnalysis();
         document.getElementById('dashboardBtn').onclick = () => {
             chrome.tabs.create({ url: `${BASE_URL}/?url=${encodeURIComponent(url)}` });
         };
@@ -73,6 +111,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 function showIntro() {
     document.getElementById('intro-view').style.display = 'block';
+    document.getElementById('login-view').style.display = 'none';
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('results').style.display = 'none';
+    document.getElementById('error').style.display = 'none';
+}
+
+function showLogin() {
+    document.getElementById('login-view').style.display = 'block';
+    document.getElementById('intro-view').style.display = 'none';
     document.getElementById('loading').style.display = 'none';
     document.getElementById('results').style.display = 'none';
     document.getElementById('error').style.display = 'none';
@@ -126,8 +173,23 @@ function displayResult(data) {
     const severityText = document.getElementById('severityText');
     const summaryText = document.getElementById('summaryText');
     const riskList = document.getElementById('riskList');
+    
+    // Site Info Header
+    const siteIcon = document.getElementById('siteIcon');
+    const siteName = document.getElementById('siteName');
+    const siteDomain = document.getElementById('siteDomain');
+    
+    if (data.favicon) {
+        siteIcon.src = data.favicon;
+        siteIcon.style.display = 'block';
+    } else {
+        siteIcon.src = 'Clause.png';
+    }
+    
+    siteDomain.textContent = data.domain || 'Target Site';
+    siteName.textContent = (data.domain || 'Target Site').split('.')[0].toUpperCase();
 
-    scoreValue.textContent = ''; // Dot based, no number
+    scoreValue.textContent = `${data.risk_score}/10`;
     summaryText.textContent = data.summary;
 
     // Reset styles

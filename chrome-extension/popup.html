@@ -28,14 +28,16 @@
     .logo {
       width: 28px;
       height: 28px;
-      background: white;
-      border-radius: 8px;
+      border-radius: 100%;
+      overflow: hidden;
       display: flex;
       align-items: center;
       justify-content: center;
-      color: black;
-      font-size: 16px;
-      font-weight: 900;
+    }
+    .logo img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
     }
     .title {
       font-size: 18px;
@@ -75,18 +77,17 @@
       justify-content: space-between;
       margin-bottom: 20px;
     }
-    .score {
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      display: inline-block;
-      margin-right: 10px;
-      animation: pulse 2.5s ease-in-out infinite;
+    .score-container {
+      display: flex;
+      align-items: center;
+      gap: 12px;
     }
-    @keyframes pulse {
-      0% { opacity: 0.3; filter: brightness(0.8); transform: scale(0.95); }
-      50% { opacity: 1; filter: brightness(1.2); transform: scale(1.05); }
-      100% { opacity: 0.3; filter: brightness(0.8); transform: scale(0.95); }
+    .score {
+      font-size: 24px;
+      font-weight: 900;
+      letter-spacing: -0.05em;
+      padding: 4px 12px;
+      border-radius: 100px;
     }
     .severity {
       font-size: 10px;
@@ -101,9 +102,9 @@
     .severity.low { background: rgba(34, 197, 94, 0.1); color: #22C55E; border: 1px solid rgba(34, 197, 94, 0.2); }
 
     .score { color: #ffffff; } /* Default */
-    .score.low { background-color: #22C55E; box-shadow: 0 0 12px rgba(34, 197, 94, 0.4); }
-    .score.medium { background-color: #F59E0B; box-shadow: 0 0 12px rgba(245, 158, 11, 0.4); }
-    .score.high { background-color: #EF4444; box-shadow: 0 0 12px rgba(239, 68, 68, 0.4); }
+    .score.low { color: #22C55E; background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.2); }
+    .score.medium { color: #F59E0B; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.2); }
+    .score.high { color: #EF4444; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); }
 
     .summary {
       font-size: 14px;
@@ -200,7 +201,7 @@
 </head>
 <body>
   <div class="header">
-    <div class="logo">S</div>
+    <div class="logo"><img src="Clause.png" alt="Logo"></div>
     <div class="title">Clause<span class="highlight">Lens</span></div>
     <label class="switch">
       <input type="checkbox" id="scan-toggle" checked>
@@ -211,8 +212,21 @@
   <div id="intro-view" style="display: none; text-align: center; padding: 20px 0;">
     <p style="font-size: 14px; color: var(--muted); margin-bottom: 20px;">Real-time policy protection is <strong>OFF</strong>. Turn it on to scan site risks.</p>
     <div style="opacity: 0.1; filter: grayscale(1); margin-bottom: 30px;">
-       <div class="logo" style="width: 60px; height: 60px; font-size: 32px; border-radius: 16px; margin: 0 auto;">S</div>
+       <div class="logo" style="width: 60px; height: 60px; border-radius: 100%; margin: 0 auto; overflow: hidden;">
+         <img src="Clause.png" alt="Logo" style="width: 100%; height: 100%; object-fit: cover;">
+       </div>
     </div>
+  </div>
+
+  <div id="login-view" style="display: none; text-align: center; padding: 40px 20px;">
+    <div class="logo" style="width: 60px; height: 60px; border-radius: 100%; margin: 0 auto 24px; overflow: hidden; box-shadow: 0 0 30px rgba(34, 228, 162, 0.2);">
+      <img src="Clause.png" alt="Logo" style="width: 100%; height: 100%; object-fit: cover;">
+    </div>
+    <h2 style="font-size: 20px; font-weight: 900; margin-bottom: 12px; color: white;">SIGN IN REQUIRED</h2>
+    <p style="font-size: 13px; color: var(--muted); margin-bottom: 32px; line-height: 1.5;">Join the community to unlock site analysis and protect your digital footprint.</p>
+    <button id="loginBtn" class="primary-btn" style="width: 100%; background: #ffffff; color: #000000; font-weight: 900; border: none; padding: 14px; border-radius: 12px; cursor: pointer; transition: all 0.2s;">
+      Go to Dashboard to Sign In
+    </button>
   </div>
 
   <div id="loading">
@@ -227,11 +241,21 @@
   </div>
 
   <div id="results" style="display: none;">
+    <div class="site-header" style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border);">
+      <div id="siteIconContainer" style="width: 32px; height: 32px; border-radius: 8px; background: var(--card); border: 1px solid var(--border); overflow: hidden; display: flex; align-items: center; justify-content: center;">
+        <img id="siteIcon" src="" style="width: 20px; height: 20px; object-fit: contain;">
+      </div>
+      <div style="flex: 1; overflow: hidden;">
+        <div id="siteName" style="font-weight: 800; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Loading...</div>
+        <div id="siteDomain" style="font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">domain.com</div>
+      </div>
+    </div>
+
     <div class="result-card">
       <div class="score-row">
-        <div style="display: flex; align-items: center;">
-          <span class="score" id="scoreValue"></span>
-          <span style="color: var(--muted); font-size: 11px; font-weight: bold; letter-spacing: 0.05em;">AI CONFIDENCE</span>
+        <div class="score-container">
+          <span class="score" id="scoreValue">0/10</span>
+          <span style="color: var(--muted); font-size: 11px; font-weight: bold; letter-spacing: 0.05em;">AI RISK SCORE</span>
         </div>
         <span class="severity" id="severityText">Scanning</span>
       </div>

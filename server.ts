@@ -5,6 +5,7 @@ import { fileURLToPath } from "url";
 import OpenAI from "openai";
 import AdmZip from "adm-zip";
 import fs from "fs";
+import cors from "cors";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -94,6 +95,7 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  app.use(cors());
   app.use(express.json());
 
   // API endpoint for health check

@@ -6,9 +6,24 @@
   "permissions": ["activeTab", "scripting", "storage", "tabs"],
   "host_permissions": ["<all_urls>"],
   "action": {
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
+    "default_icon": "Clause.png"
+  },
+  "icons": {
+    "16": "Clause.png",
+    "48": "Clause.png",
+    "128": "Clause.png"
   },
   "background": {
     "service_worker": "background.js"
-  }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://ais-pre-wndzybiqm3ibh34ikg4x5u-337842956729.europe-west1.run.app/*",
+        "https://ais-dev-wndzybiqm3ibh34ikg4x5u-337842956729.europe-west1.run.app/*"
+      ],
+      "js": ["content.js"]
+    }
+  ]
 }

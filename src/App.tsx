@@ -3,20 +3,22 @@ import { Header } from './components/Header';
 import { AnalysisForm } from './components/AnalysisForm';
 import { ResultView } from './components/ResultView';
 import { HistoryView } from './components/HistoryView';
+import { Legal } from './components/Legal';
 import { analyzeWebsite, analyzeContract } from './services/groq';
 import { AnalysisResult } from './types';
 import { useHistory } from './hooks/useHistory';
-import { Shield, Lock, Zap, MousePointer2, LogIn, User as UserIcon } from 'lucide-react';
+import { Shield, Lock, Zap, MousePointer2, LogIn, User as UserIcon, X } from 'lucide-react';
 import { cn } from './lib/utils';
 import { auth, signInWithGoogle, logout } from './lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 
 export default function App() {
-  const [activeView, setActiveView] = useState<'home' | 'dashboard' | 'history' | 'about'>('home');
+  const [activeView, setActiveView] = useState<'home' | 'dashboard' | 'history' | 'about' | 'legal'>('home');
   const [currentResult, setCurrentResult] = useState<AnalysisResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const { history, addToHistory, getAnalysis, clearHistory } = useHistory();
 
   React.useEffect(() => {
@@ -24,22 +26,37 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user);
       setIsAuthLoading(false);
+      if (user) {
+        setShowAuthModal(false);
+        localStorage.setItem('clauselens_auth_status', JSON.stringify({
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName,
+          loggedIn: true
+        }));
+      } else {
+        localStorage.removeItem('clauselens_auth_status');
+      }
     });
 
     const params = new URLSearchParams(window.location.search);
     const urlParam = params.get('url');
     if (urlParam) {
-      handleAnalyze({ type: 'website', value: urlParam });
-      setActiveView('dashboard');
+      if (user) {
+        handleAnalyze({ type: 'website', value: urlParam });
+        setActiveView('dashboard');
+      } else {
+        setShowAuthModal(true);
+      }
       window.history.replaceState({}, document.title, window.location.pathname);
     }
 
     return () => unsubscribe();
-  }, []);
+  }, [user]);
 
   const handleAnalyze = async (data: { type: 'website' | 'contract', value: string, fileName?: string }) => {
     if (!user) {
-      alert("Please sign in to analyze policies.");
+      setShowAuthModal(true);
       return;
     }
     setIsLoading(true);
@@ -63,6 +80,10 @@ export default function App() {
   };
 
   const handleSelectHistoryItem = (id: string) => {
+    if (!user) {
+      setShowAuthModal(true);
+      return;
+    }
     const analysis = getAnalysis(id);
     if (analysis) {
       setCurrentResult(analysis);
@@ -73,6 +94,45 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#050B10] text-white relative overflow-hidden">
+      {/* Auth Modal */}
+      {showAuthModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-[#050B10]/80 backdrop-blur-sm" onClick={() => setShowAuthModal(false)}></div>
+          <div className="relative bg-[#0B1219] border border-white/10 rounded-3xl p-8 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-200">
+            <button 
+              onClick={() => setShowAuthModal(false)}
+              className="absolute top-4 right-4 p-2 hover:bg-white/5 rounded-full transition-colors"
+            >
+              <X className="h-5 w-5 text-white/40" />
+            </button>
+            <div className="space-y-6 text-center">
+              <div className="w-20 h-20 bg-mint/10 text-mint rounded-2xl mx-auto flex items-center justify-center">
+                <LogIn className="h-10 w-10" />
+              </div>
+              <div className="space-y-2">
+                <h2 className="text-3xl font-black italic uppercase">Access Required</h2>
+                <p className="text-white/40 font-medium leading-relaxed">
+                  Join the ClauseLens community to analyze policies and secure your digital footprint.
+                </p>
+              </div>
+              <button 
+                onClick={() => {
+                  signInWithGoogle();
+                }}
+                className="w-full flex items-center justify-center gap-3 rounded-xl bg-white px-8 py-4 text-lg font-black text-black transition-all hover:scale-[1.02] active:scale-95 shadow-[0_0_30px_rgba(255,255,255,0.1)]"
+              >
+                <img src="https://www.google.com/favicon.ico" alt="Google" className="w-5 h-5" />
+                Sign in with Google
+              </button>
+              <p className="text-[10px] text-white/20 font-bold uppercase tracking-widest leading-loose">
+                By signing in, you agree to our <br/>
+                <button onClick={() => { setShowAuthModal(false); setActiveView('legal'); }} className="text-white/40 hover:text-mint transition-colors underline decoration-white/10 underline-offset-2">Terms</button> and <button onClick={() => { setShowAuthModal(false); setActiveView('legal'); }} className="text-white/40 hover:text-mint transition-colors underline decoration-white/10 underline-offset-2">Privacy Policy</button>.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Background Accents */}
       <div className="absolute inset-0 bg-grid-pattern opacity-20 pointer-events-none"></div>
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-accent-blue/10 blur-[120px] rounded-full pointer-events-none"></div>
@@ -138,6 +198,7 @@ export default function App() {
         )}
 
         {activeView === 'about' && <About />}
+        {activeView === 'legal' && <Legal onBack={() => setActiveView('home')} />}
       </main>
 
       <footer className="border-t border-white/10 bg-[#050B10] py-16 mt-20">
@@ -154,6 +215,13 @@ export default function App() {
                   <li><button onClick={() => setActiveView('dashboard')} className="hover:text-mint transition-colors">Analyzer</button></li>
                   <li><button onClick={() => setActiveView('history')} className="hover:text-mint transition-colors">History</button></li>
                   <li><button onClick={() => setActiveView('about')} className="hover:text-mint transition-colors">About</button></li>
+                </ul>
+              </div>
+              <div className="space-y-4">
+                <h4 className="text-xs font-black uppercase tracking-widest text-white/20">Legal</h4>
+                <ul className="space-y-2 text-sm font-bold">
+                  <li><button onClick={() => setActiveView('legal')} className="hover:text-mint transition-colors underline-offset-4 decoration-mint/30">Terms of Service</button></li>
+                  <li><button onClick={() => setActiveView('legal')} className="hover:text-mint transition-colors underline-offset-4 decoration-mint/30">Privacy Policy</button></li>
                 </ul>
               </div>
               <div className="space-y-4">
