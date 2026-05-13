@@ -93,40 +93,43 @@ export function AnalysisForm({ onAnalyze, isLoading }: AnalysisFormProps) {
   return (
     <div className="w-full max-w-4xl mx-auto">
       <div className="bg-[#0B1219] rounded-2xl border border-white/10 shadow-2xl overflow-hidden transition-all duration-500 hover:border-accent-blue/30">
-        <div className="flex border-b border-white/10">
+        <div className="flex border-b border-white/10 overflow-x-auto no-scrollbar scroll-smooth">
           <button
+            type="button"
             onClick={() => { setActiveTab('url'); setUrlError(null); }}
             className={cn(
-              "flex-1 flex items-center justify-center gap-2 py-5 text-sm font-bold tracking-tight transition-all",
+              "flex-1 min-w-[120px] flex items-center justify-center gap-2 py-4 md:py-5 text-xs md:text-sm font-bold tracking-tight transition-all border-r border-white/10",
               activeTab === 'url' ? "bg-white/5 text-white" : "text-white/40 hover:text-white hover:bg-white/5"
             )}
           >
             <LinkIcon className="h-4 w-4" />
-            Website URL
+            <span className="whitespace-nowrap">Website URL</span>
           </button>
           <button
+            type="button"
             onClick={() => { setActiveTab('text'); setUrlError(null); }}
             className={cn(
-              "flex-1 flex items-center justify-center gap-2 py-5 text-sm font-bold tracking-tight transition-all",
+              "flex-1 min-w-[120px] flex items-center justify-center gap-2 py-4 md:py-5 text-xs md:text-sm font-bold tracking-tight transition-all border-r border-white/10",
               activeTab === 'text' ? "bg-white/5 text-white" : "text-white/40 hover:text-white hover:bg-white/5"
             )}
           >
             <FileText className="h-4 w-4" />
-            Paste Text
+            <span className="whitespace-nowrap">Paste Text</span>
           </button>
           <button
+            type="button"
             onClick={() => { setActiveTab('file'); setUrlError(null); }}
             className={cn(
-              "flex-1 flex items-center justify-center gap-2 py-5 text-sm font-bold tracking-tight transition-all",
+              "flex-1 min-w-[120px] flex items-center justify-center gap-2 py-4 md:py-5 text-xs md:text-sm font-bold tracking-tight transition-all",
               activeTab === 'file' ? "bg-white/5 text-white" : "text-white/40 hover:text-white hover:bg-white/5"
             )}
           >
             <Upload className="h-4 w-4" />
-            Upload Document
+            <span className="whitespace-nowrap">Upload File</span>
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-10">
+        <form onSubmit={handleSubmit} className="p-6 md:p-10">
           {activeTab === 'url' ? (
             <div className="relative group">
               <input
@@ -138,12 +141,12 @@ export function AnalysisForm({ onAnalyze, isLoading }: AnalysisFormProps) {
                 }}
                 placeholder="https://example.com/terms"
                 className={cn(
-                  "w-full pl-14 pr-6 py-5 rounded-xl bg-white/5 border focus:bg-white/10 focus:ring-0 transition-all text-xl font-medium placeholder:text-white/20",
+                  "w-full pl-12 md:pl-14 pr-6 py-4 md:py-5 rounded-xl bg-white/5 border focus:bg-white/10 focus:ring-0 transition-all text-base md:text-xl font-medium placeholder:text-white/20",
                   urlError ? "border-red-500/50 focus:border-red-500" : "border-white/10 focus:border-accent-blue/50"
                 )}
               />
               <Search className={cn(
-                "absolute left-5 top-1/2 -translate-y-1/2 h-6 w-6 transition-colors",
+                "absolute left-4 md:left-5 top-1/2 -translate-y-1/2 h-5 w-5 md:h-6 md:w-6 transition-colors",
                 urlError ? "text-red-500/50" : "text-white/30 group-focus-within:text-accent-blue"
               )} />
               {urlError && (
@@ -158,14 +161,14 @@ export function AnalysisForm({ onAnalyze, isLoading }: AnalysisFormProps) {
               value={inputValue || ''}
               onChange={(e) => setInputValue(e.target.value)}
               placeholder="Paste the Terms of Service or Contract text here..."
-              rows={8}
-              className="w-full p-8 rounded-xl bg-white/5 border border-white/10 focus:bg-white/10 focus:border-accent-blue/50 focus:ring-0 transition-all text-xl font-medium placeholder:text-white/20 resize-none"
+              rows={6}
+              className="w-full p-4 md:p-8 rounded-xl bg-white/5 border border-white/10 focus:bg-white/10 focus:border-accent-blue/50 focus:ring-0 transition-all text-base md:text-xl font-medium placeholder:text-white/20 resize-none"
             />
           ) : (
             <div 
               {...getRootProps()} 
               className={cn(
-                "w-full p-12 rounded-2xl border-2 border-dashed transition-all flex flex-col items-center justify-center gap-4 cursor-pointer",
+                "w-full p-8 md:p-12 rounded-2xl border-2 border-dashed transition-all flex flex-col items-center justify-center gap-4 cursor-pointer",
                 isDragActive ? "border-mint bg-mint/5" : "border-white/10 hover:border-white/20 bg-white/5",
                 selectedFile && "border-mint/50 bg-mint/5"
               )}
@@ -173,17 +176,17 @@ export function AnalysisForm({ onAnalyze, isLoading }: AnalysisFormProps) {
               <input {...getInputProps()} />
               {selectedFile ? (
                 <div className="flex flex-col items-center gap-4 animate-in fade-in zoom-in duration-300">
-                  <div className="h-20 w-20 rounded-xl bg-mint/20 flex items-center justify-center">
-                    <FileText className="h-10 w-10 text-mint" />
+                  <div className="h-16 w-16 md:h-20 md:w-20 rounded-xl bg-mint/20 flex items-center justify-center">
+                    <FileText className="h-8 w-8 md:h-10 md:w-10 text-mint" />
                   </div>
-                  <div className="text-center">
-                    <p className="text-xl font-bold text-white">{selectedFile.name}</p>
-                    <p className="text-sm text-white/40">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                  <div className="text-center px-4">
+                    <p className="text-lg md:text-xl font-bold text-white truncate max-w-xs">{selectedFile.name}</p>
+                    <p className="text-xs md:text-sm text-white/40">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
                   </div>
                   <button 
                     type="button"
                     onClick={(e) => { e.stopPropagation(); clearFile(); }}
-                    className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 text-white/60 hover:text-white hover:bg-white/20 transition-all text-xs font-bold"
+                    className="flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 rounded-full bg-white/10 text-white/60 hover:text-white hover:bg-white/20 transition-all text-xs font-bold"
                   >
                     <X className="h-3 w-3" />
                     Remove File
@@ -191,12 +194,12 @@ export function AnalysisForm({ onAnalyze, isLoading }: AnalysisFormProps) {
                 </div>
               ) : (
                 <>
-                  <div className="h-20 w-20 rounded-xl bg-white/5 flex items-center justify-center">
-                    <FileUp className="h-10 w-10 text-white/20" />
+                  <div className="h-16 w-16 md:h-20 md:w-20 rounded-xl bg-white/5 flex items-center justify-center">
+                    <FileUp className="h-8 w-8 md:h-10 md:w-10 text-white/20" />
                   </div>
-                  <div className="text-center">
-                    <p className="text-xl font-bold text-white">Click or drag to upload</p>
-                    <p className="text-sm text-white/40">Supports PDF, DOCX, TXT (Max 10MB)</p>
+                  <div className="text-center px-4">
+                    <p className="text-lg md:text-xl font-bold text-white">Click or drag to upload</p>
+                    <p className="text-xs md:text-sm text-white/40">Supports PDF, DOCX, TXT (Max 10MB)</p>
                   </div>
                 </>
               )}

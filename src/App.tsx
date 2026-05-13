@@ -140,7 +140,7 @@ export default function App() {
 
       <Header onNavigate={setActiveView} activeView={activeView} user={user} onLogin={signInWithGoogle} onLogout={logout} />
       
-      <main className="relative z-10 mx-auto max-w-7xl px-4 pt-48 pb-12 sm:px-6 lg:px-8">
+      <main className="relative z-10 mx-auto max-w-7xl px-4 pt-32 md:pt-48 pb-12 sm:px-6 lg:px-8">
         {activeView === 'home' && (
           <LandingPage onStart={() => setActiveView('dashboard')} user={user} onLogin={signInWithGoogle} />
         )}
@@ -208,8 +208,8 @@ export default function App() {
               <div className="text-2xl font-black italic uppercase">Clause<span className="text-mint">Lens</span></div>
               <p className="text-white/40 max-w-xs font-medium">Built by <span className="text-white">TeamSuiaah</span> to protect your digital footprint.</p>
             </div>
-            <div className="flex gap-12">
-              <div className="space-y-4">
+            <div className="flex flex-wrap gap-x-12 gap-y-8 justify-center md:justify-end">
+              <div className="space-y-4 min-w-[120px]">
                 <h4 className="text-xs font-black uppercase tracking-widest text-white/20">Product</h4>
                 <ul className="space-y-2 text-sm font-bold">
                   <li><button onClick={() => setActiveView('dashboard')} className="hover:text-mint transition-colors">Analyzer</button></li>
@@ -217,18 +217,18 @@ export default function App() {
                   <li><button onClick={() => setActiveView('about')} className="hover:text-mint transition-colors">About</button></li>
                 </ul>
               </div>
-              <div className="space-y-4">
+              <div className="space-y-4 min-w-[120px]">
                 <h4 className="text-xs font-black uppercase tracking-widest text-white/20">Legal</h4>
                 <ul className="space-y-2 text-sm font-bold">
                   <li><button onClick={() => setActiveView('legal')} className="hover:text-mint transition-colors underline-offset-4 decoration-mint/30">Terms of Service</button></li>
                   <li><button onClick={() => setActiveView('legal')} className="hover:text-mint transition-colors underline-offset-4 decoration-mint/30">Privacy Policy</button></li>
                 </ul>
               </div>
-              <div className="space-y-4">
-                <h4 className="text-xs font-black uppercase tracking-widest text-white/20">Suirify Ecosystem</h4>
-                <ul className="space-y-2 text-sm font-bold">
-                  <li><a href="https://testnet.suirify.com" target="_blank" rel="noopener noreferrer" className="hover:text-accent-blue transition-colors flex items-center gap-2">Suirify Dashboard <Zap className="h-3 w-3" /></a></li>
-                  <li><a href="https://x.com/SuirifyProtocol" target="_blank" rel="noopener noreferrer" className="hover:text-accent-blue transition-colors">X: Suirify Protocol</a></li>
+              <div className="space-y-4 min-w-[150px]">
+                <h4 className="text-xs font-black uppercase tracking-widest text-white/20 text-center md:text-left">Connect</h4>
+                <ul className="space-y-2 text-sm font-bold text-center md:text-left">
+                  <li><a href="https://testnet.suirify.com" target="_blank" rel="noopener noreferrer" className="hover:text-accent-blue transition-colors flex items-center justify-center md:justify-start gap-2">Suirify <Zap className="h-3 w-3" /></a></li>
+                  <li><a href="https://x.com/SuirifyProtocol" target="_blank" rel="noopener noreferrer" className="hover:text-accent-blue transition-colors">X: Protocol</a></li>
                   <li><a href="https://x.com/TeamSuiaah" target="_blank" rel="noopener noreferrer" className="hover:text-accent-blue transition-colors">X: Team Suiaah</a></li>
                 </ul>
               </div>
@@ -247,32 +247,32 @@ function LandingPage({ onStart, user, onLogin }: { onStart: () => void, user: Us
   return (
     <div className="space-y-32">
       {/* Hero Section */}
-      <div className="text-center space-y-10 max-w-5xl mx-auto">
+      <div className="text-center space-y-6 md:space-y-10 max-w-5xl mx-auto px-4">
         <div className="space-y-6">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 text-mint text-sm font-bold tracking-widest uppercase">
-            <Shield className="h-4 w-4" />
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 rounded-full bg-white/5 border border-white/10 text-mint text-[10px] md:text-sm font-bold tracking-widest uppercase mb-4">
+            <Shield className="h-3 w-3 md:h-4 md:w-4" />
             AI-Powered Legal Intelligence
           </div>
-          <h1 className="text-7xl md:text-8xl font-extrabold tracking-tight leading-[0.9]">
-            Protecting your <br />
-            <span className="text-accent-blue">digital footprint</span> <br />
+          <h1 className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-extrabold tracking-tight leading-[1.1] md:leading-[0.9]">
+            Protecting your <br className="hidden sm:block" />
+            <span className="text-accent-blue">digital footprint</span> <br className="hidden sm:block" />
             on the internet.
           </h1>
-          <p className="text-xl md:text-2xl text-white/40 max-w-3xl mx-auto font-medium leading-relaxed">
+          <p className="text-base md:text-xl lg:text-2xl text-white/40 max-w-3xl mx-auto font-medium leading-relaxed px-4">
             Stop blindly clicking "I Agree". Understand the fine print, identify data risks, and take control of your privacy instantly.
           </p>
         </div>
         
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-6 pt-4">
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 md:gap-6 pt-4 px-6 md:px-0">
           <button 
             onClick={user ? onStart : onLogin}
-            className="w-full sm:w-auto rounded-xl bg-mint px-10 py-5 text-xl font-black text-[#050B10] transition-all hover:scale-105 hover:shadow-[0_0_40px_rgba(34,228,162,0.3)] active:scale-95"
+            className="w-full sm:w-auto rounded-xl bg-mint px-8 md:px-10 py-4 md:py-5 text-lg md:text-xl font-black text-[#050B10] transition-all hover:scale-105 hover:shadow-[0_0_40px_rgba(34,228,162,0.3)] active:scale-95"
           >
             {user ? 'Launch Analyzer' : 'Get Started Free'}
           </button>
           <button 
             onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
-            className="w-full sm:w-auto rounded-xl bg-white/5 border border-white/10 px-10 py-5 text-xl font-bold text-white transition-all hover:bg-white/10"
+            className="w-full sm:w-auto rounded-xl bg-white/5 border border-white/10 px-8 md:px-10 py-4 md:py-5 text-lg md:text-xl font-bold text-white transition-all hover:bg-white/10"
           >
             How it Works
           </button>
@@ -292,35 +292,35 @@ function LandingPage({ onStart, user, onLogin }: { onStart: () => void, user: Us
           {/* Connector Line (Desktop) */}
           <div className="hidden md:block absolute top-[100px] left-[15%] right-[15%] h-px bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
           
-          <div className="relative z-10 space-y-6 text-center">
-            <div className="w-20 h-20 bg-mint text-[#050B10] rounded-2xl mx-auto flex items-center justify-center text-3xl font-black shadow-[0_0_30px_rgba(34,228,162,0.2)]">1</div>
-            <h3 className="text-2xl font-bold">Input</h3>
-            <p className="text-white/40 font-medium leading-relaxed px-4">Paste a website URL, upload a PDF/DOCX contract, or simply paste the raw text of any policy.</p>
+          <div className="relative z-10 space-y-4 md:space-y-6 text-center">
+            <div className="w-16 h-16 md:w-20 md:h-20 bg-mint text-[#050B10] rounded-2xl mx-auto flex items-center justify-center text-2xl md:text-3xl font-black shadow-[0_0_30px_rgba(34,228,162,0.2)]">1</div>
+            <h3 className="text-xl md:text-2xl font-bold">Input</h3>
+            <p className="text-white/40 text-sm md:text-base font-medium leading-relaxed px-4">Paste a website URL, upload a PDF/DOCX contract, or simply paste the raw text of any policy.</p>
           </div>
 
-          <div className="relative z-10 space-y-6 text-center">
-            <div className="w-20 h-20 bg-accent-blue text-white rounded-2xl mx-auto flex items-center justify-center text-3xl font-black shadow-[0_0_30px_rgba(56,189,248,0.2)]">2</div>
-            <h3 className="text-2xl font-bold">Deconstruct</h3>
-            <p className="text-white/40 font-medium leading-relaxed px-4">Llama-3.3 parses the legal jargon, cross-referencing with global privacy standards and security benchmarks.</p>
+          <div className="relative z-10 space-y-4 md:space-y-6 text-center">
+            <div className="w-16 h-16 md:w-20 md:h-20 bg-accent-blue text-white rounded-2xl mx-auto flex items-center justify-center text-2xl md:text-3xl font-black shadow-[0_0_30px_rgba(56,189,248,0.2)]">2</div>
+            <h3 className="text-xl md:text-2xl font-bold">Deconstruct</h3>
+            <p className="text-white/40 text-sm md:text-base font-medium leading-relaxed px-4">Llama-3.3 parses the legal jargon, cross-referencing with global privacy standards and security benchmarks.</p>
           </div>
 
-          <div className="relative z-10 space-y-6 text-center">
-            <div className="w-20 h-20 bg-white/10 text-white rounded-2xl mx-auto flex items-center justify-center text-3xl font-black">3</div>
-            <h3 className="text-2xl font-bold">Risk Score</h3>
-            <p className="text-white/40 font-medium leading-relaxed px-4">Get an instant 0-10 risk rating with categorized red flags, translations, and simplified explanations.</p>
+          <div className="relative z-10 space-y-4 md:space-y-6 text-center">
+            <div className="w-16 h-16 md:w-20 md:h-20 bg-white/10 text-white rounded-2xl mx-auto flex items-center justify-center text-2xl md:text-3xl font-black">3</div>
+            <h3 className="text-xl md:text-2xl font-bold">Risk Score</h3>
+            <p className="text-white/40 text-sm md:text-base font-medium leading-relaxed px-4">Get an instant 0-10 risk rating with categorized red flags, translations, and simplified explanations.</p>
           </div>
         </div>
       </div>
 
       {/* Extension Section */}
-      <div className="bg-[#0B1219] border border-white/10 rounded-2xl p-12 md:p-20 overflow-hidden relative group">
+      <div className="bg-[#0B1219] border border-white/10 rounded-2xl p-8 md:p-12 lg:p-20 overflow-hidden relative group">
         <div className="absolute top-0 right-0 w-1/2 h-full bg-accent-blue/5 blur-[120px] rounded-full pointer-events-none group-hover:bg-accent-blue/10 transition-colors"></div>
         
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center relative z-10">
-          <div className="space-y-8">
-            <div className="inline-flex px-4 py-2 rounded-full bg-mint/10 text-mint text-xs font-bold tracking-[.2em] uppercase">On-the-go Protection</div>
-            <h2 className="text-5xl md:text-6xl font-black leading-tight italic uppercase">Browser <br />Extension</h2>
-            <p className="text-xl text-white/40 font-medium leading-relaxed">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center relative z-10">
+          <div className="space-y-6 md:space-y-8">
+            <div className="inline-flex px-3 py-1.5 rounded-full bg-mint/10 text-mint text-[10px] md:text-xs font-bold tracking-[.2em] uppercase">On-the-go Protection</div>
+            <h2 className="text-4xl md:text-6xl font-black leading-tight italic uppercase">Browser <br />Extension</h2>
+            <p className="text-lg md:text-xl text-white/40 font-medium leading-relaxed">
               Don't leave protection at the dashboard. Our Chrome Extension scans policies in real-time as you browse. Features a primary <span className="text-mint font-bold italic">toggle</span> to activate protection only when you need it.
             </p>
             
@@ -342,8 +342,8 @@ function LandingPage({ onStart, user, onLogin }: { onStart: () => void, user: Us
             </div>
           </div>
 
-          <div className="relative">
-            <div className="bg-[#050B10] rounded-2xl border border-white/10 p-4 shadow-2xl scale-110 lg:rotate-6">
+          <div className="relative mt-8 lg:mt-0">
+            <div className="bg-[#050B10] rounded-2xl border border-white/10 p-4 shadow-2xl scale-100 lg:scale-110 lg:rotate-6 max-w-sm mx-auto">
               {/* Mock Extension UI */}
               <div className="bg-[#0B1219] rounded-xl overflow-hidden border border-white/5">
                 <div className="bg-white/5 p-4 flex items-center justify-between border-b border-white/5">
@@ -414,14 +414,14 @@ function Features() {
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 pt-12">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8 pt-12">
       {features.map((f, i) => (
-        <div key={i} className="group p-10 bg-[#0B1219] rounded-2xl border border-white/10 space-y-6 transition-all hover:bg-[#121923] hover:-translate-y-2">
-          <div className={cn("inline-flex p-4 rounded-lg transition-transform group-hover:scale-110", f.bg, f.color)}>
+        <div key={i} className="group p-8 md:p-10 bg-[#0B1219] rounded-2xl border border-white/10 space-y-4 md:space-y-6 transition-all hover:bg-[#121923] hover:-translate-y-2">
+          <div className={cn("inline-flex p-3 md:p-4 rounded-lg transition-transform group-hover:scale-110", f.bg, f.color)}>
             {f.icon}
           </div>
-          <h3 className="text-2xl font-bold tracking-tight">{f.title}</h3>
-          <p className="text-white/40 leading-relaxed font-medium">{f.desc}</p>
+          <h3 className="text-xl md:text-2xl font-bold tracking-tight">{f.title}</h3>
+          <p className="text-white/40 text-sm md:text-base leading-relaxed font-medium">{f.desc}</p>
         </div>
       ))}
     </div>
@@ -430,24 +430,24 @@ function Features() {
 
 function About() {
   return (
-    <div className="max-w-4xl mx-auto space-y-20 py-10">
-      <div className="space-y-8 text-center">
-        <h1 className="text-6xl font-black tracking-tight italic uppercase">About <br /> Clause<span className="text-mint">Lens</span></h1>
-        <p className="text-2xl text-white/40 leading-relaxed italic max-w-2xl mx-auto">
+    <div className="max-w-4xl mx-auto space-y-12 md:space-y-20 py-10 px-4">
+      <div className="space-y-6 md:space-y-8 text-center">
+        <h1 className="text-4xl md:text-6xl font-black tracking-tight italic uppercase leading-none">About <br /> Clause<span className="text-mint">Lens</span></h1>
+        <p className="text-xl md:text-2xl text-white/40 leading-relaxed italic max-w-2xl mx-auto font-medium">
           "Most people don't read the terms. We think they should know what's in them."
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-        <div className="p-10 bg-[#0B1219] rounded-2xl border border-white/10 space-y-6">
-          <h2 className="text-3xl font-bold tracking-tight">Our Mission</h2>
-          <p className="text-lg text-white/60 leading-relaxed font-medium">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:grid-cols-2 lg:gap-12">
+        <div className="p-8 md:p-10 bg-[#0B1219] rounded-2xl border border-white/10 space-y-4 md:space-y-6">
+          <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Our Mission</h2>
+          <p className="text-base md:text-lg text-white/60 leading-relaxed font-medium">
             ClauseLens was born out of a simple frustration: the sheer length and complexity of modern legal documents. Built by <span className="text-mint font-bold italic">TeamSuiaah</span>, we believe that understanding your rights shouldn't require a law degree.
           </p>
         </div>
-        <div className="p-10 bg-[#0B1219] rounded-2xl border border-white/10 space-y-6">
-          <h2 className="text-3xl font-bold tracking-tight">Suirify Integration</h2>
-          <p className="text-lg text-white/60 leading-relaxed font-medium">
+        <div className="p-8 md:p-10 bg-[#0B1219] rounded-2xl border border-white/10 space-y-4 md:space-y-6">
+          <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Suirify Integration</h2>
+          <p className="text-base md:text-lg text-white/60 leading-relaxed font-medium">
             Seamlessly connected with the <a href="https://testnet.suirify.com" className="text-accent-blue hover:underline decoration-accent-blue/30 underline-offset-4">Suirify Ecosystem</a>, ClauseLens acts as your personal digital guardian. We ensure your footprint remains secure while you explore the open internet.
           </p>
         </div>

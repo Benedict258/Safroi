@@ -7,8 +7,8 @@ interface LegalProps {
 
 export function Legal({ onBack }: LegalProps) {
   return (
-    <div className="min-h-screen bg-[#050B10] text-white p-6 md:p-12 overflow-y-auto">
-      <div className="max-w-4xl mx-auto space-y-12 pb-24">
+    <div className="min-h-screen bg-[#050B10] text-white p-4 sm:p-6 md:p-12 overflow-y-auto">
+      <div className="max-w-4xl mx-auto space-y-8 md:space-y-12 pb-24">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <button 
@@ -18,57 +18,57 @@ export function Legal({ onBack }: LegalProps) {
             <ArrowLeft className="h-5 w-5 group-hover:-translate-x-1 transition-transform" />
             <span className="font-black italic uppercase tracking-wider text-sm">Return to Command</span>
           </button>
-          <div className="flex items-center gap-4 bg-white/5 border border-white/10 px-6 py-3 rounded-2xl">
-            <Shield className="h-6 w-6 text-mint" />
-            <span className="font-black italic uppercase tracking-widest text-lg">Legal Framework 2.0</span>
+          <div className="flex items-center gap-3 md:gap-4 bg-white/5 border border-white/10 px-4 py-2 md:px-6 md:py-3 rounded-2xl w-fit">
+            <Shield className="h-5 w-5 md:h-6 md:w-6 text-mint" />
+            <span className="font-black italic uppercase tracking-widest text-base md:text-lg">Legal Framework 2.0</span>
           </div>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-12">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12">
           {/* Navigation Sidebar */}
           <div className="md:col-span-1 space-y-4">
-            <div className="sticky top-12 space-y-2">
-              <h1 className="text-4xl font-black italic uppercase leading-none mb-8">Trust &<br/><span className="text-mint">Transparency</span></h1>
-              <nav className="space-y-1">
-                <a href="#terms" className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors group">
+            <div className="md:sticky md:top-32 space-y-2">
+              <h1 className="text-3xl md:text-4xl font-black italic uppercase leading-tight mb-6 md:mb-8 text-center md:text-left">Trust &<br className="hidden md:block" /><span className="text-mint">Transparency</span></h1>
+              <nav className="flex md:flex-col overflow-x-auto md:overflow-x-visible gap-2 pb-4 md:pb-0 scrollbar-hide">
+                <a href="#terms" className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors group shrink-0">
                   <FileText className="h-4 w-4 text-white/20 group-hover:text-mint transition-colors" />
-                  <span className="text-sm font-bold uppercase tracking-widest">Terms of Service</span>
+                  <span className="text-[10px] md:text-sm font-bold uppercase tracking-widest whitespace-nowrap">Terms of Service</span>
                 </a>
-                <a href="#privacy" className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors group">
+                <a href="#privacy" className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors group shrink-0">
                   <Lock className="h-4 w-4 text-white/20 group-hover:text-mint transition-colors" />
-                  <span className="text-sm font-bold uppercase tracking-widest">Privacy Policy</span>
+                  <span className="text-[10px] md:text-sm font-bold uppercase tracking-widest whitespace-nowrap">Privacy Policy</span>
                 </a>
-                <a href="#compliance" className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors group">
+                <a href="#compliance" className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors group shrink-0">
                   <Scale className="h-4 w-4 text-white/20 group-hover:text-mint transition-colors" />
-                  <span className="text-sm font-bold uppercase tracking-widest">AI & Ethics</span>
+                  <span className="text-[10px] md:text-sm font-bold uppercase tracking-widest whitespace-nowrap">AI & Ethics</span>
                 </a>
               </nav>
             </div>
           </div>
 
           {/* Content */}
-          <div className="md:col-span-2 space-y-16">
+          <div className="md:col-span-2 space-y-12 md:space-y-16">
             {/* Terms of Service */}
-            <section id="terms" className="space-y-6">
-              <h2 className="text-2xl font-black italic uppercase border-b border-white/10 pb-4 flex items-center gap-3">
+            <section id="terms" className="space-y-6 scroll-mt-32">
+              <h2 className="text-xl md:text-2xl font-black italic uppercase border-b border-white/10 pb-4 flex items-center gap-3">
                 <div className="w-2 h-2 bg-mint rounded-full shadow-[0_0_10px_#22E4A2]"></div>
                 Terms of Service
               </h2>
-              <div className="prose prose-invert max-w-none text-white/60 font-medium leading-relaxed space-y-4">
+              <div className="prose prose-invert max-w-none text-white/60 font-medium leading-relaxed space-y-4 text-sm md:text-base">
                 <p>Welcome to ClauseLens. By accessing our platform, you agree to these terms. Please read them carefully.</p>
                 
-                <h3 className="text-white font-black uppercase text-sm tracking-wider mt-8">1. Service Description</h3>
+                <h3 className="text-white font-black uppercase text-xs md:text-sm tracking-wider mt-8">1. Service Description</h3>
                 <p>ClauseLens provides AI-driven analysis of digital privacy policies and terms of service. Our tool is designed to highlight potential risks and summarize complex legal data for informational purposes.</p>
 
-                <h3 className="text-white font-black uppercase text-sm tracking-wider mt-8">2. Not Legal Advice</h3>
-                <p className="bg-white/5 p-4 rounded-xl border border-white/10 text-mint italic">
+                <h3 className="text-white font-black uppercase text-xs md:text-sm tracking-wider mt-8">2. Not Legal Advice</h3>
+                <p className="bg-white/5 p-4 rounded-xl border border-white/10 text-mint italic text-xs md:text-sm">
                   IMPORTANT: The analysis provided by ClauseLens is generated by Artificial Intelligence. It does NOT constitute legal advice. You should consult with a qualified legal professional for any specific legal concerns or interpretations.
                 </p>
 
-                <h3 className="text-white font-black uppercase text-sm tracking-wider mt-8">3. User Obligations & Data Input</h3>
+                <h3 className="text-white font-black uppercase text-xs md:text-sm tracking-wider mt-8">3. User Obligations & Data Input</h3>
                 <p>You agree not to use ClauseLens for any illegal activities or to attempt to reverse-engineer our proprietary scoring algorithms. When you submit a URL or a text document for analysis, you grant us a temporary, non-exclusive license to process that content solely for the purpose of generating your requested analysis.</p>
 
-                <h3 className="text-white font-black uppercase text-sm tracking-wider mt-8">4. Liability Limitation</h3>
+                <h3 className="text-white font-black uppercase text-xs md:text-sm tracking-wider mt-8">4. Liability Limitation</h3>
                 <p>ClauseLens is provided "as is" without any warranties. We are not liable for any decisions made based on our AI-generated analysis. Always read the full official documents before making life-impacting decisions.</p>
               </div>
             </section>
