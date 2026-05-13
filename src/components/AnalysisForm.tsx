@@ -12,6 +12,16 @@ export function AnalysisForm({ onAnalyze, isLoading }: AnalysisFormProps) {
   const [activeTab, setActiveTab] = useState<'url' | 'text' | 'file'>('url');
   const [inputValue, setInputValue] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [urlError, setUrlError] = useState<string | null>(null);
+
+  const validateUrl = (url: string) => {
+    try {
+      const parsed = new URL(url);
+      return parsed.protocol === "http:" || parsed.protocol === "https:";
+    } catch {
+      return false;
+    }
+  };
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles && acceptedFiles.length > 0) {
@@ -43,7 +53,7 @@ export function AnalysisForm({ onAnalyze, isLoading }: AnalysisFormProps) {
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx']
     },
     multiple: false
-  });
+  } as any);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,10 +70,13 @@ export function AnalysisForm({ onAnalyze, isLoading }: AnalysisFormProps) {
 
     if (!inputValue.trim() || isLoading) return;
     
-    // Simple validation
-    if (activeTab === 'url' && !inputValue.startsWith('http')) {
-      alert("Please enter a valid URL starting with http:// or https://");
-      return;
+    // URL validation
+    if (activeTab === 'url') {
+      if (!validateUrl(inputValue)) {
+        setUrlError("Please enter a valid URL starting with http:// or https://");
+        return;
+      }
+      setUrlError(null);
     }
 
     onAnalyze({
@@ -79,10 +92,10 @@ export function AnalysisForm({ onAnalyze, isLoading }: AnalysisFormProps) {
 
   return (
     <div className="w-full max-w-4xl mx-auto">
-      <div className="bg-[#0B1219] rounded-[32px] border border-white/10 shadow-2xl overflow-hidden transition-all duration-500 hover:border-accent-blue/30">
+      <div className="bg-[#0B1219] rounded-2xl border border-white/10 shadow-2xl overflow-hidden transition-all duration-500 hover:border-accent-blue/30">
         <div className="flex border-b border-white/10">
           <button
-            onClick={() => setActiveTab('url')}
+            onClick={() => { setActiveTab('url'); setUrlError(null); }}
             className={cn(
               "flex-1 flex items-center justify-center gap-2 py-5 text-sm font-bold tracking-tight transition-all",
               activeTab === 'url' ? "bg-white/5 text-white" : "text-white/40 hover:text-white hover:bg-white/5"
@@ -92,7 +105,7 @@ export function AnalysisForm({ onAnalyze, isLoading }: AnalysisFormProps) {
             Website URL
           </button>
           <button
-            onClick={() => setActiveTab('text')}
+            onClick={() => { setActiveTab('text'); setUrlError(null); }}
             className={cn(
               "flex-1 flex items-center justify-center gap-2 py-5 text-sm font-bold tracking-tight transition-all",
               activeTab === 'text' ? "bg-white/5 text-white" : "text-white/40 hover:text-white hover:bg-white/5"
@@ -102,7 +115,7 @@ export function AnalysisForm({ onAnalyze, isLoading }: AnalysisFormProps) {
             Paste Text
           </button>
           <button
-            onClick={() => setActiveTab('file')}
+            onClick={() => { setActiveTab('file'); setUrlError(null); }}
             className={cn(
               "flex-1 flex items-center justify-center gap-2 py-5 text-sm font-bold tracking-tight transition-all",
               activeTab === 'file' ? "bg-white/5 text-white" : "text-white/40 hover:text-white hover:bg-white/5"
@@ -118,26 +131,41 @@ export function AnalysisForm({ onAnalyze, isLoading }: AnalysisFormProps) {
             <div className="relative group">
               <input
                 type="text"
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
+                value={inputValue || ''}
+                onChange={(e) => {
+                  setInputValue(e.target.value);
+                  if (urlError) setUrlError(null);
+                }}
                 placeholder="https://example.com/terms"
-                className="w-full pl-14 pr-6 py-5 rounded-2xl bg-white/5 border border-white/10 focus:bg-white/10 focus:border-accent-blue/50 focus:ring-0 transition-all text-xl font-medium placeholder:text-white/20"
+                className={cn(
+                  "w-full pl-14 pr-6 py-5 rounded-xl bg-white/5 border focus:bg-white/10 focus:ring-0 transition-all text-xl font-medium placeholder:text-white/20",
+                  urlError ? "border-red-500/50 focus:border-red-500" : "border-white/10 focus:border-accent-blue/50"
+                )}
               />
-              <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-6 w-6 text-white/30 group-focus-within:text-accent-blue transition-colors" />
+              <Search className={cn(
+                "absolute left-5 top-1/2 -translate-y-1/2 h-6 w-6 transition-colors",
+                urlError ? "text-red-500/50" : "text-white/30 group-focus-within:text-accent-blue"
+              )} />
+              {urlError && (
+                <div className="absolute -bottom-6 left-2 flex items-center gap-1.5 text-red-500 text-xs font-bold animate-in fade-in slide-in-from-top-1">
+                  <AlertCircle className="h-3 w-3" />
+                  {urlError}
+                </div>
+              )}
             </div>
           ) : activeTab === 'text' ? (
             <textarea
-              value={inputValue}
+              value={inputValue || ''}
               onChange={(e) => setInputValue(e.target.value)}
               placeholder="Paste the Terms of Service or Contract text here..."
               rows={8}
-              className="w-full p-8 rounded-2xl bg-white/5 border border-white/10 focus:bg-white/10 focus:border-accent-blue/50 focus:ring-0 transition-all text-xl font-medium placeholder:text-white/20 resize-none"
+              className="w-full p-8 rounded-xl bg-white/5 border border-white/10 focus:bg-white/10 focus:border-accent-blue/50 focus:ring-0 transition-all text-xl font-medium placeholder:text-white/20 resize-none"
             />
           ) : (
             <div 
               {...getRootProps()} 
               className={cn(
-                "w-full p-12 rounded-[32px] border-2 border-dashed transition-all flex flex-col items-center justify-center gap-4 cursor-pointer",
+                "w-full p-12 rounded-2xl border-2 border-dashed transition-all flex flex-col items-center justify-center gap-4 cursor-pointer",
                 isDragActive ? "border-mint bg-mint/5" : "border-white/10 hover:border-white/20 bg-white/5",
                 selectedFile && "border-mint/50 bg-mint/5"
               )}
@@ -145,7 +173,7 @@ export function AnalysisForm({ onAnalyze, isLoading }: AnalysisFormProps) {
               <input {...getInputProps()} />
               {selectedFile ? (
                 <div className="flex flex-col items-center gap-4 animate-in fade-in zoom-in duration-300">
-                  <div className="h-20 w-20 rounded-2xl bg-mint/20 flex items-center justify-center">
+                  <div className="h-20 w-20 rounded-xl bg-mint/20 flex items-center justify-center">
                     <FileText className="h-10 w-10 text-mint" />
                   </div>
                   <div className="text-center">
@@ -163,7 +191,7 @@ export function AnalysisForm({ onAnalyze, isLoading }: AnalysisFormProps) {
                 </div>
               ) : (
                 <>
-                  <div className="h-20 w-20 rounded-2xl bg-white/5 flex items-center justify-center">
+                  <div className="h-20 w-20 rounded-xl bg-white/5 flex items-center justify-center">
                     <FileUp className="h-10 w-10 text-white/20" />
                   </div>
                   <div className="text-center">
@@ -186,7 +214,7 @@ export function AnalysisForm({ onAnalyze, isLoading }: AnalysisFormProps) {
               type="submit"
               disabled={isLoading || (activeTab === 'file' ? !selectedFile : !inputValue.trim())}
               className={cn(
-                "w-full md:w-auto px-6 py-3 rounded-2xl font-extrabold transition-all active:scale-95",
+                "w-full md:w-auto px-6 py-3 rounded-xl font-extrabold transition-all active:scale-95",
                 isLoading || (activeTab === 'file' ? !selectedFile : !inputValue.trim()) 
                   ? "bg-white/5 text-white/20 cursor-not-allowed" 
                   : "bg-mint text-[#050B10] hover:scale-105"

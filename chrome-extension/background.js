@@ -1,5 +1,18 @@
 // ClauseLens Background Service Worker
-const BASE_URL = "https://ais-dev-wndzybiqm3ibh34ikg4x5u-337842956729.europe-west1.run.app";
+let BASE_URL = "http://localhost:3000"; // Fallback
+
+async function loadConfig() {
+  try {
+    const response = await fetch(chrome.runtime.getURL('config.json'));
+    const config = await response.json();
+    BASE_URL = config.BASE_URL;
+  } catch (e) {
+    console.warn("Background: Config not found, using default URL", e);
+  }
+}
+
+// Initial config load
+loadConfig();
 
 // Throttle analysis to avoid hitting quotas too fast
 const domainCache = new Map();
@@ -9,8 +22,13 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     const url = new URL(tab.url);
     const domain = url.hostname;
 
-    // Check if we already analyzed this domain recently
-    chrome.storage.local.get([domain], (result) => {
+    // Check if scanning is enabled
+    chrome.storage.local.get(['scanningEnabled', domain], (result) => {
+      if (result.scanningEnabled === false) {
+        chrome.action.setBadgeText({ text: "" });
+        return;
+      }
+
       if (!result[domain]) {
         console.log("Analyzing new domain:", domain);
         analyzeDomain(domain, tab.url);
@@ -25,7 +43,12 @@ chrome.tabs.onActivated.addListener((activeInfo) => {
   chrome.tabs.get(activeInfo.tabId, (tab) => {
     if (tab.url && tab.url.startsWith('http')) {
       const domain = new URL(tab.url).hostname;
-      chrome.storage.local.get([domain], (result) => {
+      chrome.storage.local.get(['scanningEnabled', domain], (result) => {
+        if (result.scanningEnabled === false) {
+          chrome.action.setBadgeText({ text: "" });
+          return;
+        }
+
         if (result[domain]) {
           updateBadge(result[domain].risk_score);
         } else {

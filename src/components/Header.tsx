@@ -1,12 +1,16 @@
 import React from 'react';
-import { Shield, Info, Menu } from 'lucide-react';
+import { Info, Menu, LogIn, LogOut, User as UserIcon } from 'lucide-react';
+import { User } from 'firebase/auth';
 
 interface HeaderProps {
-  onNavigate: (view: 'dashboard' | 'history' | 'about') => void;
+  onNavigate: (view: 'home' | 'dashboard' | 'history' | 'about') => void;
   activeView: string;
+  user: User | null;
+  onLogin: () => void;
+  onLogout: () => void;
 }
 
-export function Header({ onNavigate, activeView }: HeaderProps) {
+export function Header({ onNavigate, activeView, user, onLogin, onLogout }: HeaderProps) {
   const handleDownload = () => {
     window.location.href = '/api/download-extension';
   };
@@ -16,12 +20,9 @@ export function Header({ onNavigate, activeView }: HeaderProps) {
       <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between">
         <div 
           className="flex items-center gap-2 cursor-pointer group" 
-          onClick={() => onNavigate('dashboard')}
+          onClick={() => onNavigate('home')}
         >
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-black transition-transform group-hover:scale-110">
-            <Shield className="h-6 w-6" />
-          </div>
-          <span className="text-2xl font-extrabold tracking-tighter text-white">
+          <span className="text-2xl font-black italic uppercase tracking-tighter text-white">
             Clause<span className="text-mint">Lens</span>
           </span>
         </div>
@@ -50,10 +51,34 @@ export function Header({ onNavigate, activeView }: HeaderProps) {
         <div className="flex items-center gap-4">
           <button 
             onClick={handleDownload}
-            className="rounded-xl bg-mint px-4 py-2 text-sm font-extrabold text-[#050B10] transition-all hover:scale-105 active:scale-95"
+            className="hidden sm:block rounded-lg bg-white/5 border border-white/10 px-4 py-2 text-xs font-bold text-white/60 transition-all hover:bg-white/10 hover:text-white"
           >
-            Install Extension
+            Extension
           </button>
+          
+          {user ? (
+            <div className="flex items-center gap-3">
+              <div className="hidden sm:flex flex-col items-end">
+                <span className="text-xs font-bold text-white leading-none">{user.displayName}</span>
+                <button onClick={onLogout} className="text-[10px] font-black text-white/40 uppercase hover:text-red-400 transition-colors tracking-widest">Logout</button>
+              </div>
+              {user.photoURL ? (
+                <img src={user.photoURL} alt="Profile" className="h-10 w-10 rounded-lg border border-white/10" />
+              ) : (
+                <div className="h-10 w-10 rounded-lg bg-mint/20 flex items-center justify-center border border-white/10">
+                  <UserIcon className="h-5 w-5 text-mint" />
+                </div>
+              )}
+            </div>
+          ) : (
+            <button 
+              onClick={onLogin}
+              className="rounded-lg bg-mint px-4 py-2 text-sm font-extrabold text-[#050B10] transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
+            >
+              <LogIn className="h-4 w-4" />
+              Sign In
+            </button>
+          )}
         </div>
       </div>
     </header>

@@ -12,7 +12,7 @@ interface HistoryViewProps {
 export function HistoryView({ items, onSelectItem, onClear }: HistoryViewProps) {
   if (items.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-32 bg-[#0B1219] rounded-[48px] border border-white/10 text-center">
+      <div className="flex flex-col items-center justify-center py-32 bg-[#0B1219] rounded-2xl border border-white/10 text-center">
         <div className="h-24 w-24 flex items-center justify-center bg-white/10 rounded-full mb-8">
           <History className="h-12 w-12 text-white/20" />
         </div>
@@ -28,7 +28,7 @@ export function HistoryView({ items, onSelectItem, onClear }: HistoryViewProps) 
         <h2 className="text-4xl font-extrabold tracking-tight">Your History</h2>
         <button 
           onClick={onClear}
-          className="flex items-center gap-2 text-sm font-extrabold text-risk-high hover:bg-risk-high/10 px-6 py-3 rounded-2xl border border-risk-high/20 transition-all hover:scale-105"
+          className="flex items-center gap-2 text-sm font-extrabold text-risk-high hover:bg-risk-high/10 px-6 py-3 rounded-xl border border-risk-high/20 transition-all hover:scale-105"
         >
           <Trash2 className="h-4 w-4" />
           Clear All
@@ -40,12 +40,12 @@ export function HistoryView({ items, onSelectItem, onClear }: HistoryViewProps) 
           <button
             key={item.id}
             onClick={() => onSelectItem(item.id)}
-            className="group flex items-center gap-8 p-8 bg-[#0B1219] rounded-[40px] border border-white/10 transition-all hover:bg-[#121923] hover:border-accent-blue/30 hover:scale-[1.01] text-left relative overflow-hidden"
+            className="group flex items-center gap-8 p-8 bg-[#0B1219] rounded-2xl border border-white/10 transition-all hover:bg-[#121923] hover:border-accent-blue/30 hover:scale-[1.01] text-left relative overflow-hidden"
           >
             <div className="absolute inset-0 bg-accent-blue/5 opacity-0 group-hover:opacity-100 transition-opacity blur-3xl pointer-events-none"></div>
             
             <div className={cn(
-               "h-16 w-16 flex items-center justify-center rounded-2xl shrink-0 transition-all group-hover:scale-110 shadow-2xl relative z-10",
+               "h-16 w-16 flex items-center justify-center rounded-xl shrink-0 transition-all group-hover:scale-110 shadow-2xl relative z-10",
                item.risk_score <= 3 ? "bg-risk-low/20 text-risk-low border border-risk-low/20" :
                item.risk_score <= 7 ? "bg-risk-medium/20 text-risk-medium border border-risk-medium/20" :
                "bg-risk-high/20 text-risk-high border border-risk-high/20"
@@ -60,7 +60,7 @@ export function HistoryView({ items, onSelectItem, onClear }: HistoryViewProps) 
                   <Calendar className="h-4 w-4" />
                   {new Date(item.timestamp).toLocaleDateString()}
                 </div>
-                <div className="flex items-center gap-2 px-3 py-1 bg-white/5 rounded-lg border border-white/5 uppercase tracking-widest text-[10px]">
+                <div className="flex items-center gap-2 px-3 py-1 bg-white/5 rounded-md border border-white/5 uppercase tracking-widest text-[10px]">
                   Risk Index: <span className={cn(
                     "ml-1",
                     item.risk_score <= 3 ? "text-risk-low" :

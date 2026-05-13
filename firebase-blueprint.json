@@ -1,0 +1,48 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email"]
+    },
+    "Analysis": {
+      "title": "Analysis Result",
+      "description": "Saved analysis results for a user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "type": { "type": "string", "enum": ["website", "contract"] },
+        "value": { "type": "string" },
+        "fileName": { "type": "string" },
+        "risk_score": { "type": "number" },
+        "summary": { "type": "string" },
+        "risks": {
+          "type": "array",
+          "items": { "type": "object" }
+        },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "type", "value", "risk_score", "summary", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Public user profile information"
+    },
+    "/users/{userId}/history/{analysisId}": {
+      "schema": "Analysis",
+      "description": "User specific analysis history"
+    }
+  }
+}

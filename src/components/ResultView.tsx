@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { AnalysisResult, Risk } from '../types';
 import { AlertTriangle, Info, CheckCircle2, Globe, FileText, ChevronRight, Languages } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { translateText } from '../services/gemini';
+import { translateText } from '../services/groq';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface ResultViewProps {
@@ -48,7 +48,7 @@ export function ResultView({ result }: ResultViewProps) {
       <div className="flex flex-col md:flex-row gap-12 items-center md:items-start text-center md:text-left">
         <div className="flex-1 space-y-6">
           <div className="flex items-center justify-center md:justify-start gap-3">
-            <div className={`p-2.5 rounded-xl ${scoreBg} border border-white/5`}>
+            <div className={`p-2.5 rounded-lg ${scoreBg} border border-white/5`}>
               {result.type === 'website' ? <Globe className={`h-6 w-6 ${scoreColor}`} /> : <FileText className={`h-6 w-6 ${scoreColor}`} />}
             </div>
             <span className="text-sm font-bold uppercase tracking-[0.2em] text-white/40">
@@ -64,7 +64,7 @@ export function ResultView({ result }: ResultViewProps) {
           )}
         </div>
 
-        <div className={cn("px-12 py-10 rounded-[48px] flex flex-col items-center justify-center gap-2 shadow-2xl border border-white/10 relative group transition-all hover:scale-110", scoreBg)}>
+        <div className={cn("px-12 py-10 rounded-xl flex flex-col items-center justify-center gap-2 shadow-2xl border border-white/10 relative group transition-all hover:scale-110", scoreBg)}>
           <div className="absolute inset-0 bg-white/5 blur-2xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
           <span className="text-sm font-bold uppercase tracking-widest text-white/40 relative z-10">Risk Score</span>
           <span className={cn("text-8xl font-black font-mono leading-none tracking-tighter relative z-10", scoreColor)}>{result.risk_score}</span>
@@ -75,15 +75,15 @@ export function ResultView({ result }: ResultViewProps) {
       </div>
 
       {/* Summary with Translation */}
-      <div className="bg-[#0B1219] rounded-[48px] border border-white/10 p-12 relative overflow-hidden group">
+      <div className="bg-[#0B1219] rounded-2xl border border-white/10 p-12 relative overflow-hidden group">
         <div className="absolute top-0 right-0 w-64 h-64 bg-accent-blue/5 blur-[100px] rounded-full pointer-events-none"></div>
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-10">
           <h2 className="text-3xl font-extrabold tracking-tight">Quick Summary</h2>
-          <div className="flex items-center gap-3 bg-[#121923] p-1.5 rounded-2xl border border-white/10">
+          <div className="flex items-center gap-3 bg-[#121923] p-1.5 rounded-xl border border-white/10">
              <select 
-               value={targetLang}
+               value={targetLang || 'Spanish'}
                onChange={(e) => setTargetLang(e.target.value)}
-               className="text-sm border-none bg-transparent rounded-xl px-4 py-2 focus:ring-0 text-white font-bold cursor-pointer hover:bg-white/10 transition-colors"
+               className="text-sm border-none bg-transparent rounded-lg px-4 py-2 focus:ring-0 text-white font-bold cursor-pointer hover:bg-white/10 transition-colors"
              >
                <option className="bg-[#050B10]">Spanish</option>
                <option className="bg-[#050B10]">French</option>
@@ -93,7 +93,7 @@ export function ResultView({ result }: ResultViewProps) {
              <button 
               onClick={handleTranslate}
               disabled={isTranslating}
-              className="flex items-center gap-2 text-sm font-bold bg-mint text-[#050B10] px-4 py-2 rounded-xl transition-all hover:scale-105 active:scale-95"
+              className="flex items-center gap-2 text-sm font-bold bg-mint text-[#050B10] px-4 py-2 rounded-lg transition-all hover:scale-105 active:scale-95"
              >
                <Languages className="h-4 w-4" />
                {isTranslating ? '...' : translatedSummary ? 'Original' : `Translate`}
@@ -115,7 +115,7 @@ export function ResultView({ result }: ResultViewProps) {
 
       {/* Key Points - if available */}
       {result.key_points && (
-        <div className="bg-black text-white rounded-[40px] p-10">
+        <div className="bg-black text-white rounded-2xl p-10">
           <h2 className="text-2xl font-bold mb-6">Key Takeaways</h2>
           <ul className="space-y-4">
             {result.key_points.map((point, i) => (
@@ -156,11 +156,11 @@ const RiskCard: React.FC<RiskCardProps> = ({ risk, index }) => {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.1 * index }}
-      className={cn("p-10 h-full rounded-[40px] border border-white/10 flex flex-col gap-6 transition-all hover:scale-[1.05] hover:shadow-2xl relative overflow-hidden bg-[#0B1219] group", gradientClass)}
+      className={cn("p-10 h-full rounded-2xl border border-white/10 flex flex-col gap-6 transition-all hover:scale-[1.05] hover:shadow-2xl relative overflow-hidden bg-[#0B1219] group", gradientClass)}
     >
       <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
       <div className="flex items-center justify-between relative z-10">
-        <div className={cn("p-4 rounded-2xl bg-[#050B10] border border-white/10 shadow-lg", iconColor)}>
+        <div className={cn("p-4 rounded-xl bg-[#050B10] border border-white/10 shadow-lg", iconColor)}>
           <Icon className="h-7 w-7" />
         </div>
         <span className={cn("text-[10px] font-black uppercase tracking-[0.2em] px-4 py-1.5 rounded-full border border-current", iconColor)}>
@@ -174,7 +174,7 @@ const RiskCard: React.FC<RiskCardProps> = ({ risk, index }) => {
       {risk.clause && (
         <div className="mt-auto pt-6 border-t border-white/5 relative z-10">
           <span className="text-[10px] font-bold uppercase tracking-widest text-white/20 block mb-3">Original Clause</span>
-          <div className="p-4 rounded-xl bg-black/40 border border-white/5">
+          <div className="p-4 rounded-lg bg-black/40 border border-white/5">
             <p className="text-xs font-mono italic text-white/40 line-clamp-4 leading-relaxed">"{risk.clause}"</p>
           </div>
         </div>
