@@ -1,10 +1,12 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { getFirestore, doc, setDoc, collection, query, orderBy, onSnapshot, getDocFromServer } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, query, orderBy, onSnapshot, getDocFromServer, initializeFirestore } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
+
+// Use standard Firestore initialization as per critical requirement
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 
 const googleProvider = new GoogleAuthProvider();
@@ -24,7 +26,7 @@ export const signInWithGoogle = async () => {
         email: user.email,
         displayName: user.displayName,
         photoURL: user.photoURL,
-        createdAt: new Date().toISOString() // Cloud rules will validate with request.time if we use serverTimestamp, but for simpler client handling we use ISO here and transform in rules if needed. Actually rules use request.time, so I should use serverTimestamp if I want strictness.
+        createdAt: new Date().toISOString()
       });
     }
     return user;
@@ -39,10 +41,20 @@ export const logout = () => signOut(auth);
 // Test Connection as per instructions
 async function testConnection() {
   try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
+    const dbId = firebaseConfig.firestoreDatabaseId || '(default)';
+    console.log(`[Firestore] Testing connectivity... Database: ${dbId}`);
+    const testDoc = doc(db, 'test', 'connection');
+    console.log(`[Firestore] Document Path: ${testDoc.path}`);
+    await getDocFromServer(testDoc);
+    console.log("[Firestore] Connection success!");
   } catch (error) {
-    if(error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("Please check your Firebase configuration.");
+    if(error instanceof Error) {
+      if (error.message.includes('the client is offline')) {
+        console.error("[Firestore] OFFLINE: Check configuration.");
+      } else {
+        console.error(`[Firestore] PERMISSION ERROR [${firebaseConfig.firestoreDatabaseId || '(default)'}]:`, error.message);
+        console.error("[Firestore] Technical Details:", error);
+      }
     }
   }
 }

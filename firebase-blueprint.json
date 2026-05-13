@@ -43,6 +43,10 @@
     "/users/{userId}/history/{analysisId}": {
       "schema": "Analysis",
       "description": "User specific analysis history"
+    },
+    "/test/connection": {
+      "schema": "object",
+      "description": "Used to test database connectivity"
     }
   }
 }
