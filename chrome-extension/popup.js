@@ -1,28 +1,43 @@
 // ClauseLens Popup Script
-let BASE_URL = "http://localhost:3000"; // Fallback
+let BASE_URL = "https://clauselens-257251079622.us-west1.run.app"; // Default production
 let isConfigLoaded = false;
 let configPromise = null;
 
+async function detectEnvironment() {
+    try {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        const currentTab = tabs[0];
+        if (currentTab && currentTab.url) {
+            const url = new URL(currentTab.url);
+            if (url.hostname.includes('run.app') || url.hostname.includes('localhost')) {
+                console.log("Auto-detected environment from tab:", url.origin);
+                BASE_URL = url.origin;
+            }
+        }
+    } catch (e) {
+        console.warn("Env detection failed", e);
+    }
+}
+
 function loadConfig() {
     if (configPromise) return configPromise;
-    configPromise = fetch(chrome.runtime.getURL('config.json'))
-        .then(async r => {
+    configPromise = (async () => {
+        await detectEnvironment();
+        try {
+            const r = await fetch(chrome.runtime.getURL('config.json'));
             const contentType = r.headers.get('content-type');
-            if (!r.ok || !contentType || !contentType.includes('application/json')) {
-                throw new Error("Invalid config response");
+            if (r.ok && contentType && contentType.includes('application/json')) {
+                const config = await r.json();
+                if (config.BASE_URL) {
+                    BASE_URL = config.BASE_URL;
+                }
             }
-            return r.json();
-        })
-        .then(config => {
-            BASE_URL = config.BASE_URL;
-            isConfigLoaded = true;
-            return config;
-        })
-        .catch(e => {
-            console.warn("Config loading failed, using default URL", e);
-            isConfigLoaded = true;
-            return { BASE_URL };
-        });
+        } catch (e) {
+            console.warn("Config loading failed, using detected URL", e);
+        }
+        isConfigLoaded = true;
+        return { BASE_URL };
+    })();
     return configPromise;
 }
 
@@ -63,9 +78,163 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // Login Listener
-    document.getElementById('loginBtn').addEventListener('click', () => {
-        chrome.tabs.create({ url: `${BASE_URL}` });
+    // Auth Form Logic
+    const authForm = document.getElementById('auth-form');
+    const authTitle = document.getElementById('auth-title');
+    const authSubtitle = document.getElementById('auth-subtitle');
+    const authSubmitBtn = document.getElementById('auth-submit-btn');
+    const toggleAuthModeBtn = document.getElementById('toggle-auth-mode');
+    const forgotPasswordBtn = document.getElementById('forgot-password-btn');
+    const authNameInput = document.getElementById('auth-name');
+    const authEmailInput = document.getElementById('auth-email');
+    const authPasswordInput = document.getElementById('auth-password');
+    const authErrorDiv = document.getElementById('auth-error');
+    const authSuccessDiv = document.getElementById('auth-success');
+
+    let currentAuthMode = 'login'; // login, signup, reset
+
+    toggleAuthModeBtn.addEventListener('click', () => {
+        if (currentAuthMode === 'login') {
+            currentAuthMode = 'signup';
+            authTitle.textContent = 'CREATE ACCOUNT';
+            authSubtitle.textContent = 'Join ClauseLens to start identifying digital risks.';
+            authSubmitBtn.textContent = 'Sign Up';
+            toggleAuthModeBtn.textContent = 'Back to Sign In';
+            authNameInput.style.display = 'block';
+            authPasswordInput.style.display = 'block';
+        } else {
+            currentAuthMode = 'login';
+            authTitle.textContent = 'SIGN IN';
+            authSubtitle.textContent = 'Access your history and real-time scans.';
+            authSubmitBtn.textContent = 'Sign In';
+            toggleAuthModeBtn.textContent = 'Create Account';
+            authNameInput.style.display = 'none';
+            authPasswordInput.style.display = 'block';
+        }
+        authErrorDiv.style.display = 'none';
+        authSuccessDiv.style.display = 'none';
+    });
+
+    forgotPasswordBtn.addEventListener('click', () => {
+        currentAuthMode = 'reset';
+        authTitle.textContent = 'RESET PASSWORD';
+        authSubtitle.textContent = 'Enter your email to receive a reset link.';
+        authSubmitBtn.textContent = 'Send Reset Link';
+        toggleAuthModeBtn.textContent = 'Back to Sign In';
+        authNameInput.style.display = 'none';
+        authPasswordInput.style.display = 'none';
+        authErrorDiv.style.display = 'none';
+        authSuccessDiv.style.display = 'none';
+    });
+
+    authForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        authErrorDiv.style.display = 'none';
+        authSuccessDiv.style.display = 'none';
+        authSubmitBtn.disabled = true;
+        const originalBtnText = authSubmitBtn.textContent;
+        authSubmitBtn.textContent = 'Processing...';
+
+        await loadConfig();
+        const cleanBase = BASE_URL.endsWith('/') ? BASE_URL.slice(0, -1) : BASE_URL;
+        
+        let endpoint = '/api/auth/login';
+        let body = { email: authEmailInput.value, password: authPasswordInput.value };
+        
+        if (currentAuthMode === 'signup') {
+            endpoint = '/api/auth/signup';
+            body.name = authNameInput.value;
+        } else if (currentAuthMode === 'reset') {
+            endpoint = '/api/auth/reset';
+            body = { email: authEmailInput.value };
+        }
+
+        try {
+            const data = await smartFetch(`${cleanBase}${endpoint}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+
+            if (currentAuthMode === 'reset') {
+                authSuccessDiv.textContent = 'A professional reset link has been dispatched to your inbox. Please check your email to proceed.';
+                authSuccessDiv.style.display = 'block';
+                setTimeout(() => {
+                    currentAuthMode = 'login';
+                    authTitle.textContent = 'SIGN IN';
+                    authSubmitBtn.textContent = 'Sign In';
+                    authPasswordInput.style.display = 'block';
+                    authSuccessDiv.style.display = 'none';
+                }, 5000);
+            } else {
+                // Success - logged in
+                chrome.storage.local.set({ auth_user: data }, () => {
+                    updateViewBasedOnAuth({ auth_user: data });
+                });
+            }
+        } catch (err) {
+            let userFriendlyError = err.message;
+            if (err.message.includes('Unable to parse API response') || err.message.includes('Unexpected server response')) {
+                userFriendlyError = "Connection error. If you are signed in on the web app, please refresh auth below. Otherwise, check your network.";
+            }
+            authErrorDiv.textContent = userFriendlyError;
+            authErrorDiv.style.display = 'block';
+        } finally {
+            authSubmitBtn.disabled = false;
+            authSubmitBtn.textContent = originalBtnText;
+        }
+    });
+
+    // Refresh Auth Listener
+    document.getElementById('refreshAuthBtn').addEventListener('click', async () => {
+        const btn = document.getElementById('refreshAuthBtn');
+        const originalText = btn.textContent;
+        btn.textContent = "Checking...";
+        btn.disabled = true;
+
+        try {
+            // Find any tab with ClauseLens and ask it to sync
+            const tabs = await chrome.tabs.query({});
+            let foundApp = false;
+            for (const tab of tabs) {
+                if (tab.url && (tab.url.includes('europe-west1.run.app') || tab.url.includes('localhost'))) {
+                    foundApp = true;
+                    try {
+                        await chrome.scripting.executeScript({
+                            target: { tabId: tab.id },
+                            func: () => {
+                                if (typeof syncAuth === 'function') {
+                                    syncAuth();
+                                    return true;
+                                }
+                                return false;
+                            }
+                        });
+                    } catch (e) {
+                        console.warn("Could not execute sync on tab", tab.id, e);
+                    }
+                }
+            }
+            
+            if (!foundApp) {
+                alert("Please open the ClauseLens web app first, sign in, and then click refresh.");
+            } else {
+                // Give it a moment to sync
+                setTimeout(() => {
+                    chrome.storage.local.get(['auth_user'], (result) => {
+                        updateViewBasedOnAuth(result);
+                        btn.textContent = originalText;
+                        btn.disabled = false;
+                    });
+                }, 1000);
+                return;
+            }
+        } catch (err) {
+            console.error("Refresh error:", err);
+        }
+        
+        btn.textContent = originalText;
+        btn.disabled = false;
     });
 
     // Toggle Listener
@@ -87,25 +256,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     async function initializeAnalysis() {
-        // Pre-flight check: see if the server is actually reachable
-        try {
-            const healthCheck = await fetch(`${BASE_URL}/api/health`).catch(() => null);
-            if (!healthCheck || !healthCheck.ok) {
-                console.warn("Health check failed, checking if we need to update BASE_URL");
-                // If health check fails, the user might be on a different dev URL than what's in config
-                // We'll try to use the current tab's origin if it looks like an AI Studio project
-                const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-                const currentTab = tabs[0];
-                if (currentTab && currentTab.url && (currentTab.url.includes('europe-west1.run.app') || currentTab.url.includes('localhost'))) {
-                    const newBase = new URL(currentTab.url).origin;
-                    if (newBase !== BASE_URL) {
-                        console.log("Auto-updating BASE_URL to tab origin:", newBase);
-                        BASE_URL = newBase;
-                    }
-                }
-            }
-        } catch (e) {}
-
         const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
         const currentTab = tabs[0];
         
@@ -116,6 +266,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const url = currentTab.url;
         const domain = new URL(url).hostname;
+        const pageTitle = currentTab.title;
+        const favIconUrl = currentTab.favIconUrl;
 
         // One more check for auth before starting analysis
         chrome.storage.local.get(['auth_user'], (res) => {
@@ -129,7 +281,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (result[domain] && (Date.now() - result[domain].timestamp < 3600000)) { // 1 hour cache
                     displayResult(result[domain]);
                 } else {
-                    startAnalysis(url, domain);
+                    startAnalysis(url, domain, pageTitle, favIconUrl);
                 }
             });
         });
@@ -159,7 +311,41 @@ function showLogin() {
     document.getElementById('error').style.display = 'none';
 }
 
-async function startAnalysis(url, domain) {
+async function smartFetch(url, options = {}) {
+    const contentType = options.headers?.['Content-Type'] || 'application/json';
+    // Ensure credentials: 'include' is set to carry AI Studio platform cookies
+    const fetchOptions = {
+        ...options,
+        credentials: 'include'
+    };
+    const response = await fetch(url, fetchOptions);
+    const actualContentType = response.headers.get('content-type');
+
+    if (!response.ok) {
+        let errorMessage = `Server error: ${response.status} ${response.statusText}`;
+        if (actualContentType && actualContentType.includes('application/json')) {
+            const errData = await response.json();
+            errorMessage = errData.error || errorMessage;
+        } else if (actualContentType && actualContentType.includes('text/html')) {
+            // HTML usually means session expired or wrong URL
+            errorMessage = "Analysis endpoint returned HTML. This usually means your session needs to be refreshed. Please click 'Sign In' below.";
+        }
+        throw new Error(errorMessage);
+    }
+
+    if (!actualContentType || !actualContentType.includes('application/json')) {
+        console.error("API response is not JSON:", actualContentType, "URL:", url);
+        // Handle potential redirect to login page (even if 200 OK)
+        if (actualContentType && actualContentType.includes('text/html')) {
+            throw new Error("Unable to parse API response. Please ensure you are signed in through the extension popup.");
+        }
+        throw new Error("Unexpected server response format. Please check your connection.");
+    }
+
+    return response.json();
+}
+
+async function startAnalysis(url, domain, pageTitle, favIconUrl) {
     showLoading();
     
     try {
@@ -167,34 +353,21 @@ async function startAnalysis(url, domain) {
         await loadConfig();
         
         const cleanBase = BASE_URL.endsWith('/') ? BASE_URL.slice(0, -1) : BASE_URL;
-        const response = await fetch(`${cleanBase}/api/analyze`, {
+        const data = await smartFetch(`${cleanBase}/api/analyze`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ type: 'website', value: url })
+            body: JSON.stringify({ 
+                type: 'website', 
+                value: url,
+                title: pageTitle,
+                favicon: favIconUrl
+            })
         });
-
-        const contentType = response.headers.get('content-type');
         
-        if (!response.ok) {
-            let errorMessage = `Server error: ${response.status} ${response.statusText}`;
-            if (contentType && contentType.includes('application/json')) {
-                const errData = await response.json();
-                errorMessage = errData.error || errorMessage;
-            } else if (contentType && contentType.includes('text/html')) {
-                // If it's HTML, it's likely a proxy redirect or error page from AI Studio
-                errorMessage = "The server returned an HTML page instead of JSON. This often happens if the extension's API URL is incorrect or if you are not logged into the application. Try visiting the app URL directly to ensure you are authenticated.";
-            }
-            throw new Error(errorMessage);
-        }
+        // Ensure metadata is preserved even if backend doesn't return it perfectly
+        if (!data.favicon && favIconUrl) data.favicon = favIconUrl;
+        if ((!data.title || data.title === domain) && pageTitle) data.title = pageTitle;
 
-        if (!contentType || !contentType.includes('application/json')) {
-            const bodyPreview = await response.text().then(t => t.substring(0, 100)).catch(() => "unknown");
-            console.error("Non-JSON Response Body Preview:", bodyPreview);
-            throw new Error(`Server returned non-JSON response (${contentType || 'no content-type'}). Please check if the BASE_URL in your extension config matches your current App URL.`);
-        }
-
-        const data = await response.json();
-        
         // Save to cache
         chrome.storage.local.set({ [domain]: data });
         displayResult(data);
@@ -238,17 +411,26 @@ function displayResult(data) {
     
     // Better name extraction
     let displayName = domain;
-    try {
-        const parts = domain.split('.');
-        if (parts.length >= 2) {
-            // Handle common subdomains
-            if (parts[0] === 'www' || parts[0] === 'app' || parts[0] === 'docs') {
-                displayName = parts[1];
-            } else {
-                displayName = parts[0];
+    
+    // Prioritize the title from data if it exists and isn't just the domain
+    if (data.title && data.title !== domain) {
+        displayName = data.title;
+        // Clean up common title suffixes
+        displayName = displayName.split('|')[0].split('-')[0].split('–')[0].trim();
+    } else {
+        try {
+            const parts = domain.split('.');
+            if (parts.length >= 2) {
+                // Handle common subdomains
+                if (parts[0] === 'www' || parts[0] === 'app' || parts[0] === 'docs') {
+                    displayName = parts[1];
+                } else {
+                    displayName = parts[0];
+                }
             }
-        }
-    } catch (e) {}
+        } catch (e) {}
+    }
+    
     siteName.textContent = displayName.charAt(0).toUpperCase() + displayName.slice(1);
 
     // Resilient Icon logic

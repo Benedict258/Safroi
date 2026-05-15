@@ -28,7 +28,8 @@ loadConfig();
 
 // Authentication State Sync
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'SYNC_AUTH') {
+  if (message.type === 'SYNC_AUTH' && message.data && message.data.loggedIn) {
+    // Only upgrade the session, never clear it from content script sync
     chrome.storage.local.set({ auth_user: message.data });
   }
 });
@@ -113,16 +114,35 @@ async function resetIcon() {
 
 async function analyzeDomain(domain, fullUrl, favicon) {
   try {
+    // Before analysis, try to see if BASE_URL is still valid
+    try {
+      const healthCheck = await fetch(`${BASE_URL}/api/health`).catch(() => null);
+      if (!healthCheck || !healthCheck.ok) {
+        // Try to update from active tab if it's an app tab
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        const currentTab = tabs[0];
+        if (currentTab && currentTab.url && (currentTab.url.includes('europe-west1.run.app') || currentTab.url.includes('localhost'))) {
+          const newBase = new URL(currentTab.url).origin;
+          if (newBase !== BASE_URL) {
+            console.log("Background: Auto-updating BASE_URL to tab origin:", newBase);
+            BASE_URL = newBase;
+          }
+        }
+      }
+    } catch (e) {}
+
     const cleanBase = BASE_URL.endsWith('/') ? BASE_URL.slice(0, -1) : BASE_URL;
     const response = await fetch(`${cleanBase}/api/analyze`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({ url: fullUrl })
     });
 
     const contentType = response.headers.get('content-type');
     if (!response.ok || !contentType || !contentType.includes('application/json')) {
-      throw new Error(`Analysis failed for ${domain}`);
+      // Silently fail in background if session expired to avoid spamming console with errors
+      return;
     }
     
     const data = await response.json();

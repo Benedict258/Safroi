@@ -8,39 +8,70 @@
     <link rel="icon" type="image/png" href="/Clause.png">
     <link rel="apple-touch-icon" href="/Clause.png">
     <script>
-      // Suppress Vite websocket and related errors in AI Studio preview
+      // Suppress benign console noise and environment-specific errors
       (function() {
-        const suppressList = ['WebSocket', 'socket', '[vite] failed to connect', 'HMR'];
+        const suppressList = [
+          'WebSocket', 
+          'socket', 
+          '[vite] failed to connect', 
+          'HMR', 
+          'WebSocket closed', 
+          'monaco-editor', 
+          'web worker', 
+          'extension context invalidated',
+          'Writer trial',
+          'Origin trial',
+          'ClauseLens: Checking auth status',
+          'ClauseLens: Found custom auth status',
+          'ClauseLens: Found Firebase auth status',
+          'Slow network is detected',
+          'violates the following Content Security Policy directive',
+          'preloaded using link preload but not used',
+          'Please note that you are testing the GHP integration',
+          'Failed to start Logcat polling',
+          'Error while streaming response: _.iG',
+          'MakersuiteAppletControlService',
+          'StreamCodeAssistantOfflineGeneration',
+          'Origin trial controlled feature not enabled',
+          'Unrecognized feature'
+        ];
         
-        window.addEventListener('unhandledrejection', (event) => {
-          if (event.reason) {
-            const msg = event.reason.message || String(event.reason);
-            if (suppressList.some(s => msg.includes(s))) {
-              event.preventDefault();
-              event.stopPropagation();
-            }
-          }
-        }, true);
+        const shouldSuppress = (msg) => {
+          if (!msg) return false;
+          const str = String(msg);
+          return suppressList.some(s => str.toLowerCase().includes(s.toLowerCase()));
+        };
 
-        window.addEventListener('error', (event) => {
-          const msg = event.message || '';
-          if (suppressList.some(s => msg.includes(s))) {
+        window.addEventListener('unhandledrejection', (event) => {
+          if (shouldSuppress(event.reason?.message || event.reason)) {
             event.preventDefault();
             event.stopPropagation();
           }
         }, true);
 
-        const originalWarn = console.warn;
-        console.warn = (...args) => {
-          if (typeof args[0] === 'string' && suppressList.some(s => args[0].includes(s))) return;
-          originalWarn.apply(console, args);
+        window.addEventListener('error', (event) => {
+          if (shouldSuppress(event.message)) {
+            event.preventDefault();
+            event.stopPropagation();
+          }
+        }, true);
+
+        const wrap = (original) => {
+          if (!original) return original;
+          return (...args) => {
+            const firstArg = args[0];
+            if (firstArg && shouldSuppress(firstArg)) return;
+            // Also check the entire string representation of arguments for complex logs
+            if (args.some(a => shouldSuppress(a))) return;
+            original.apply(console, args);
+          };
         };
 
-        const originalError = console.error;
-        console.error = (...args) => {
-          if (typeof args[0] === 'string' && suppressList.some(s => args[0].includes(s))) return;
-          originalError.apply(console, args);
-        };
+        console.warn = wrap(console.warn);
+        console.error = wrap(console.error);
+        console.info = wrap(console.info);
+        console.debug = wrap(console.debug);
+        console.log = wrap(console.log);
       })();
     </script>
   </head>

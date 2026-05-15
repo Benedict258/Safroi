@@ -28,9 +28,13 @@
     {
       "matches": [
         "https://ais-pre-wndzybiqm3ibh34ikg4x5u-337842956729.europe-west1.run.app/*",
-        "https://ais-dev-wndzybiqm3ibh34ikg4x5u-337842956729.europe-west1.run.app/*"
+        "https://ais-dev-wndzybiqm3ibh34ikg4x5u-337842956729.europe-west1.run.app/*",
+        "*://*.run.app/*",
+        "http://localhost/*"
       ],
-      "js": ["content.js"]
+      "js": ["content.js"],
+      "all_frames": true,
+      "run_at": "document_start"
     }
   ]
 }

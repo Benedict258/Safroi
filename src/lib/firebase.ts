@@ -1,6 +1,15 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { getFirestore, doc, setDoc, query, orderBy, onSnapshot, getDocFromServer, initializeFirestore } from 'firebase/firestore';
+import { 
+  getAuth, 
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  signOut,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+  updateProfile
+} from 'firebase/auth';
+import { getFirestore, doc, setDoc, query, orderBy, onSnapshot, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
@@ -15,26 +24,43 @@ export const signInWithGoogle = async () => {
   try {
     const result = await signInWithPopup(auth, googleProvider);
     const user = result.user;
-    
-    // Create/update user profile
-    const userDoc = doc(db, 'users', user.uid);
-    const docSnap = await getDocFromServer(userDoc);
-    
-    if (!docSnap.exists()) {
-      await setDoc(userDoc, {
-        uid: user.uid,
-        email: user.email,
-        displayName: user.displayName,
-        photoURL: user.photoURL,
-        createdAt: new Date().toISOString()
-      });
-    }
+    await ensureUserDoc(user);
     return user;
   } catch (error) {
     console.error("Error signing in with Google:", error);
     throw error;
   }
 };
+
+const ensureUserDoc = async (user: any) => {
+  const userDoc = doc(db, 'users', user.uid);
+  const docSnap = await getDocFromServer(userDoc).catch(() => null);
+  
+  if (!docSnap || !docSnap.exists()) {
+    await setDoc(userDoc, {
+      uid: user.uid,
+      email: user.email,
+      displayName: user.displayName || user.email?.split('@')[0] || 'User',
+      photoURL: user.photoURL,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+  }
+};
+
+export const loginWithEmail = async (email: string, pass: string) => {
+  const result = await signInWithEmailAndPassword(auth, email, pass);
+  return result.user;
+};
+
+export const registerWithEmail = async (email: string, pass: string, name: string) => {
+  const result = await createUserWithEmailAndPassword(auth, email, pass);
+  await updateProfile(result.user, { displayName: name });
+  await ensureUserDoc(result.user);
+  return result.user;
+};
+
+export const resetPassword = (email: string) => sendPasswordResetEmail(auth, email);
 
 export const logout = () => signOut(auth);
 

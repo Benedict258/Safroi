@@ -9,8 +9,9 @@ import { AnalysisResult } from './types';
 import { useHistory } from './hooks/useHistory';
 import { Shield, Lock, Zap, MousePointer2, LogIn, User as UserIcon, X } from 'lucide-react';
 import { cn } from './lib/utils';
-import { auth, signInWithGoogle, logout } from './lib/firebase';
+import { auth, signInWithGoogle, logout, loginWithEmail, registerWithEmail, resetPassword } from './lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
+import { Mail, Key, ArrowLeft, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 export default function App() {
   const [activeView, setActiveView] = useState<'home' | 'dashboard' | 'history' | 'about' | 'legal'>('home');
@@ -19,6 +20,13 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'signup' | 'reset'>('login');
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authName, setAuthName] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [authSuccess, setAuthSuccess] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { history, addToHistory, getAnalysis, clearHistory } = useHistory();
 
   React.useEffect(() => {
@@ -97,37 +105,184 @@ export default function App() {
       {/* Auth Modal */}
       {showAuthModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-[#050B10]/80 backdrop-blur-sm" onClick={() => setShowAuthModal(false)}></div>
-          <div className="relative bg-[#0B1219] border border-white/10 rounded-3xl p-8 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-200">
+          <div className="absolute inset-0 bg-[#050B10]/90 backdrop-blur-md" onClick={() => { if (!isSubmitting) setShowAuthModal(false); }}></div>
+          <div className="relative bg-[#0B1219] border border-white/10 rounded-3xl p-8 max-w-md w-full shadow-[0_0_50px_rgba(34,228,162,0.1)] animate-in zoom-in-95 duration-200">
             <button 
               onClick={() => setShowAuthModal(false)}
               className="absolute top-4 right-4 p-2 hover:bg-white/5 rounded-full transition-colors"
+              disabled={isSubmitting}
             >
               <X className="h-5 w-5 text-white/40" />
             </button>
-            <div className="space-y-6 text-center">
-              <div className="w-20 h-20 bg-mint/10 text-mint rounded-2xl mx-auto flex items-center justify-center">
-                <LogIn className="h-10 w-10" />
-              </div>
-              <div className="space-y-2">
-                <h2 className="text-3xl font-black italic uppercase">Access Required</h2>
-                <p className="text-white/40 font-medium leading-relaxed">
-                  Join the ClauseLens community to analyze policies and secure your digital footprint.
+            
+            <div className="space-y-6">
+              <div className="text-center space-y-2">
+                <div className="w-16 h-16 bg-mint/10 text-mint rounded-2xl mx-auto flex items-center justify-center mb-4">
+                  <Shield className="h-8 w-8" />
+                </div>
+                <h2 className="text-3xl font-black italic uppercase">
+                  {authMode === 'login' ? 'Welcome Back' : authMode === 'signup' ? 'Create Account' : 'Reset Password'}
+                </h2>
+                <p className="text-white/40 text-sm font-medium leading-relaxed">
+                  {authMode === 'login' 
+                    ? 'Sign in to access your analyses and secure your footprint.' 
+                    : authMode === 'signup' 
+                    ? 'Join ClauseLens to start identifying digital risks today.'
+                    : 'Enter your email to receive a password reset link.'}
                 </p>
               </div>
+
+              {authError && (
+                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-bold flex gap-2 items-center italic">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  {authError}
+                </div>
+              )}
+
+              {authSuccess && (
+                <div className="p-3 rounded-xl bg-mint/10 border border-mint/20 text-mint text-xs font-bold flex gap-2 items-center italic">
+                  <CheckCircle2 className="h-4 w-4 shrink-0" />
+                  {authSuccess}
+                </div>
+              )}
+
+              <form className="space-y-4" onSubmit={async (e) => {
+                e.preventDefault();
+                setAuthError('');
+                setAuthSuccess('');
+                setIsSubmitting(true);
+                try {
+                  if (authMode === 'login') {
+                    await loginWithEmail(authEmail, authPassword);
+                    setShowAuthModal(false);
+                  } else if (authMode === 'signup') {
+                    if (!authName) throw new Error("Name is required");
+                    await registerWithEmail(authEmail, authPassword, authName);
+                    setShowAuthModal(false);
+                  } else {
+                    // Call server-side reset for professional template messaging
+                    const response = await fetch('/api/auth/reset', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ email: authEmail })
+                    });
+                    const data = await response.json();
+                    if (!response.ok) throw new Error(data.error || "Reset failed");
+                    
+                    setAuthSuccess("A professional reset link has been dispatched to your inbox. Please check your email to proceed.");
+                    setTimeout(() => setAuthMode('login'), 5000);
+                  }
+                } catch (err: any) {
+                  setAuthError(err.message || "Authentication failed");
+                } finally {
+                  setIsSubmitting(false);
+                }
+              }}>
+                {authMode === 'signup' && (
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-white/40 ml-1">Full Name</label>
+                    <div className="relative">
+                      <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/20" />
+                      <input 
+                        type="text" 
+                        required
+                        value={authName}
+                        onChange={(e) => setAuthName(e.target.value)}
+                        placeholder="John Doe"
+                        className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-11 pr-4 text-sm font-medium focus:outline-none focus:border-mint/50 transition-colors"
+                      />
+                    </div>
+                  </div>
+                )}
+                
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-white/40 ml-1">Email Address</label>
+                  <div className="relative">
+                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/20" />
+                    <input 
+                      type="email" 
+                      required
+                      value={authEmail}
+                      onChange={(e) => setAuthEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-11 pr-4 text-sm font-medium focus:outline-none focus:border-mint/50 transition-colors"
+                    />
+                  </div>
+                </div>
+
+                {authMode !== 'reset' && (
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center px-1">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-white/40">Password</label>
+                      {authMode === 'login' && (
+                        <button 
+                          type="button" 
+                          onClick={() => setAuthMode('reset')}
+                          className="text-[10px] font-bold text-white/20 hover:text-mint transition-colors"
+                        >
+                          Forgot?
+                        </button>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <Key className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/20" />
+                      <input 
+                        type="password" 
+                        required
+                        value={authPassword}
+                        onChange={(e) => setAuthPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-11 pr-4 text-sm font-medium focus:outline-none focus:border-mint/50 transition-colors"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <button 
+                  disabled={isSubmitting}
+                  className="w-full bg-mint text-[#050B10] font-black uppercase tracking-wider py-4 rounded-xl hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2"
+                >
+                  {isSubmitting ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : authMode === 'login' ? (
+                    'Sign In'
+                  ) : authMode === 'signup' ? (
+                    'Create Account'
+                  ) : (
+                    'Send Reset Link'
+                  )}
+                </button>
+              </form>
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/5"></div></div>
+                <div className="relative flex justify-center text-[10px] uppercase font-black tracking-widest"><span className="bg-[#0B1219] px-4 text-white/20 italic">Or continue with</span></div>
+              </div>
+
               <button 
-                onClick={() => {
-                  signInWithGoogle();
-                }}
-                className="w-full flex items-center justify-center gap-3 rounded-xl bg-white px-8 py-4 text-lg font-black text-black transition-all hover:scale-[1.02] active:scale-95 shadow-[0_0_30px_rgba(255,255,255,0.1)]"
+                onClick={() => signInWithGoogle()}
+                disabled={isSubmitting}
+                className="w-full flex items-center justify-center gap-3 rounded-xl bg-white/5 border border-white/10 px-8 py-4 text-sm font-black text-white transition-all hover:bg-white/10 active:scale-95 disabled:opacity-50"
               >
-                <img src="https://www.google.com/favicon.ico" alt="Google" className="w-5 h-5" />
-                Sign in with Google
+                <img src="https://www.google.com/favicon.ico" alt="Google" className="w-5 h-5 opacity-80" />
+                Google Account
               </button>
-              <p className="text-[10px] text-white/20 font-bold uppercase tracking-widest leading-loose">
-                By signing in, you agree to our <br/>
-                <button onClick={() => { setShowAuthModal(false); setActiveView('legal'); }} className="text-white/40 hover:text-mint transition-colors underline decoration-white/10 underline-offset-2">Terms</button> and <button onClick={() => { setShowAuthModal(false); setActiveView('legal'); }} className="text-white/40 hover:text-mint transition-colors underline decoration-white/10 underline-offset-2">Privacy Policy</button>.
-              </p>
+
+              <div className="text-center pt-2">
+                {authMode === 'login' ? (
+                  <p className="text-xs font-bold text-white/40">
+                    New to ClauseLens? {' '}
+                    <button onClick={() => setAuthMode('signup')} className="text-mint hover:underline">Create an account</button>
+                  </p>
+                ) : (
+                  <button 
+                    onClick={() => setAuthMode('login')} 
+                    className="flex items-center gap-2 mx-auto text-xs font-bold text-white/40 hover:text-white transition-colors"
+                  >
+                    <ArrowLeft className="h-3 w-3" /> Back to Sign In
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -138,11 +293,11 @@ export default function App() {
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-accent-blue/10 blur-[120px] rounded-full pointer-events-none"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-accent-blue/10 blur-[120px] rounded-full pointer-events-none"></div>
 
-      <Header onNavigate={setActiveView} activeView={activeView} user={user} onLogin={signInWithGoogle} onLogout={logout} />
+      <Header onNavigate={setActiveView} activeView={activeView} user={user} onLogin={() => setShowAuthModal(true)} onLogout={logout} />
       
       <main className="relative z-10 mx-auto max-w-7xl px-4 pt-32 md:pt-48 pb-12 sm:px-6 lg:px-8">
         {activeView === 'home' && (
-          <LandingPage onStart={() => setActiveView('dashboard')} user={user} onLogin={signInWithGoogle} />
+          <LandingPage onStart={() => setActiveView('dashboard')} user={user} onLogin={() => setShowAuthModal(true)} />
         )}
 
         {activeView === 'dashboard' && (
@@ -156,15 +311,15 @@ export default function App() {
                 <p className="text-xl text-white/40 font-medium">Upload a contract or paste a website URL to start the analysis.</p>
                 
                 {!user && (
-                   <div className="pt-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
-                     <button 
-                       onClick={signInWithGoogle}
-                       className="inline-flex items-center gap-3 rounded-xl bg-white px-8 py-4 text-lg font-black text-black transition-all hover:scale-105 active:scale-95"
-                     >
-                       <LogIn className="h-5 w-5" />
-                       Sign in to start
-                     </button>
-                   </div>
+                  <div className="pt-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                    <button 
+                      onClick={() => setShowAuthModal(true)}
+                      className="inline-flex items-center gap-3 rounded-xl bg-white px-8 py-4 text-lg font-black text-black transition-all hover:scale-105 active:scale-95"
+                    >
+                      <LogIn className="h-5 w-5" />
+                      Sign in to start
+                    </button>
+                  </div>
                 )}
               </div>
             )}

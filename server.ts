@@ -6,9 +6,30 @@ import OpenAI from "openai";
 import AdmZip from "adm-zip";
 import fs from "fs";
 import cors from "cors";
+import { initializeApp } from "firebase/app";
+import { 
+  getAuth, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  sendPasswordResetEmail,
+  updateProfile
+} from "firebase/auth";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Load Firebase config manually for better compatibility with bundlers
+let firebaseConfig: any;
+try {
+  const configPath = path.join(process.cwd(), "firebase-applet-config.json");
+  if (fs.existsSync(configPath)) {
+    firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+  } else {
+    console.warn("firebase-applet-config.json not found. Backend auth proxy will be disabled.");
+  }
+} catch (error) {
+  console.error("Error loading firebase-applet-config.json:", error);
+}
+
+
+// Path resolution is handled via process.cwd() for bundled compatibility
 
 // Initialize Groq on the backend
 let groq: OpenAI | null = null;
@@ -69,48 +90,52 @@ async function fetchWebsiteContent(url: string) {
       throw new Error("Private networks are blocked for security.");
     }
 
-    // Try with a standard browser User-Agent first to avoid being blocked as a bot
     const userAgents = [
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     ];
     
     const response = await fetch(url, {
       headers: {
-        'User-Agent': userAgents[Math.floor(Math.random() * userAgents.length)],
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
+        'User-Agent': userAgents[0],
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       }
     });
     
-    if (response.status === 429) {
-      console.warn(`Rate limited (429) by ${url}`);
-      return null; // Let the AI fallback to search
-    }
-
-    if (response.status === 403) {
-      console.warn(`Forbidden (403) access to ${url}`);
-      return null; // Let the AI fallback to search
-    }
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch website: ${response.statusText} (${response.status})`);
-    }
+    if (!response.ok) return null;
     
-    const text = await response.text();
-    // Simple text extraction (strip tags)
-    return text.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gmi, "")
+    const html = await response.text();
+    
+    // Extract metadata
+    let title = "";
+    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+    if (titleMatch) title = titleMatch[1].trim();
+    
+    let favicon = "";
+    const iconMatch = html.match(/<link[^>]*rel=["'](?:shortcut )?icon["'][^>]*href=["']([^"']+)["'][^>]*>/i) ||
+                    html.match(/<link[^>]*href=["']([^"']+)["'][^>]*rel=["'](?:shortcut )?icon["'][^>]*>/i) ||
+                    html.match(/<link[^>]*rel=["']apple-touch-icon["'][^>]*href=["']([^"']+)["'][^>]*>/i) ||
+                    html.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["'][^>]*>/i);
+    
+    if (iconMatch) {
+      favicon = iconMatch[1];
+      if (favicon && !favicon.startsWith('http')) {
+        favicon = new URL(favicon, url).href;
+      }
+    } else {
+      // Fallback to standard /favicon.ico
+      favicon = `${parsedUrl.origin}/favicon.ico`;
+    }
+
+    // Clean text for AI
+    const content = html.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gmi, "")
                .replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gmi, "")
                .replace(/<[^>]+>/g, ' ')
                .replace(/\s+/g, ' ')
                .trim()
-               .substring(0, 15000); // Limit to 15k chars for prompt
+               .substring(0, 15000);
+
+    return { content, title, favicon };
   } catch (error) {
-    if (error instanceof Error && (error.message.includes('Forbidden') || error.message.includes('Too Many Requests'))) {
-       // Silently fail for these as they are "expected" blocks we handle via search fallback
-       return null;
-    }
     console.error("Fetch Error:", error);
     return null;
   }
@@ -118,7 +143,48 @@ async function fetchWebsiteContent(url: string) {
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
+
+  // Initialize Firebase for backend auth proxy if config exists
+  if (firebaseConfig) {
+    try {
+      initializeApp(firebaseConfig);
+      console.log("Firebase initialized for backend auth.");
+    } catch (error) {
+      console.error("Firebase initialization failed:", error);
+    }
+  }
+
+  // Professional Email Template for reference
+  const getProfessionalResetEmail = (email: string) => `
+    <div style="font-family: 'Inter', sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; background-color: #050B10; color: #FFFFFF; border-radius: 24px; border: 1px solid rgba(255, 255, 255, 0.1);">
+      <div style="text-align: center; margin-bottom: 32px;">
+        <h1 style="color: #22E4A2; font-size: 28px; font-weight: 900; letter-spacing: -1px; margin: 0;">ClauseLens</h1>
+        <p style="color: rgba(255, 255, 255, 0.6); font-size: 14px; margin-top: 8px;">Smart Contract Intelligence</p>
+      </div>
+      
+      <div style="background-color: rgba(255, 255, 255, 0.03); padding: 32px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.05);">
+        <h2 style="font-size: 20px; font-weight: 700; margin-top: 0; margin-bottom: 16px;">Reset your password</h2>
+        <p style="line-height: 1.6; color: rgba(255, 255, 255, 0.8);">Hello,</p>
+        <p style="line-height: 1.6; color: rgba(255, 255, 255, 0.8);">We received a request to reset the password for your ClauseLens account (${email}). If you didn't request this, you can safely ignore this email.</p>
+        
+        <div style="margin: 32px 0; text-align: center;">
+          <a href="{{URL}}" style="background-color: #22E4A2; color: #050B10; padding: 14px 32px; border-radius: 12px; text-decoration: none; font-weight: 900; display: inline-block; transition: all 0.2s ease;">
+            Reset Password
+          </a>
+        </div>
+        
+        <p style="font-size: 12px; color: rgba(255, 255, 255, 0.4); margin-top: 24px;">Note: This link will expire in 1 hour.</p>
+      </div>
+      
+      <div style="text-align: center; margin-top: 32px;">
+        <p style="font-size: 12px; color: rgba(255, 255, 255, 0.3);">
+          &copy; 2026 ClauseLens AI. All rights reserved.<br/>
+          Designed for clarity and security.
+        </p>
+      </div>
+    </div>
+  `;
 
   // Enable CORS for all origins, including chrome extensions
   app.use(cors({
@@ -150,6 +216,68 @@ async function startServer() {
 
   app.get("/api/ping", (req, res) => {
     res.send("pong"); // Simple text response for testing
+  });
+
+  // Auth Endpoints for Extension
+  app.post("/api/auth/login", async (req, res) => {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ error: "Email and password required" });
+    
+    try {
+      const auth = getAuth();
+      const result = await signInWithEmailAndPassword(auth, email, password);
+      res.json({
+        uid: result.user.uid,
+        email: result.user.email,
+        displayName: result.user.displayName || email.split('@')[0],
+        loggedIn: true
+      });
+    } catch (error: any) {
+      console.error("Extension login error:", error);
+      res.status(401).json({ error: error.message || "Invalid credentials" });
+    }
+  });
+
+  app.post("/api/auth/signup", async (req, res) => {
+    const { email, password, name } = req.body;
+    if (!email || !password || !name) return res.status(400).json({ error: "Email, password and name required" });
+    
+    try {
+      const auth = getAuth();
+      const result = await createUserWithEmailAndPassword(auth, email, password);
+      await updateProfile(result.user, { displayName: name });
+      res.json({
+        uid: result.user.uid,
+        email: result.user.email,
+        displayName: name,
+        loggedIn: true
+      });
+    } catch (error: any) {
+      console.error("Extension signup error:", error);
+      res.status(400).json({ error: error.message || "Signup failed" });
+    }
+  });
+
+  app.post("/api/auth/reset", async (req, res) => {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: "Email required" });
+    
+    try {
+      const auth = getAuth();
+      await sendPasswordResetEmail(auth, email);
+      
+      // Log the professional template to server logs so the admin can see it
+      console.log("Professional Email Template triggered for:", email);
+      console.log("Template Preview:", getProfessionalResetEmail(email));
+      
+      res.json({ 
+        message: "Reset link sent",
+        templateRecommendation: "To align with our professional UI, we recommend updating your Firebase Console Email Template with the customized ClauseLens design."
+      });
+    } catch (error: any) {
+      console.error("Extension reset error:", error);
+      res.status(400).json({ error: error.message || "Reset failed" });
+    }
   });
 
   // Download Chrome Extension as ZIP
@@ -207,7 +335,11 @@ async function startServer() {
       const model = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
       
       if (type === 'website') {
-        const content = await fetchWebsiteContent(value);
+        const fetchRest = await fetchWebsiteContent(value);
+        const content = fetchRest?.content;
+        const fetchedTitle = fetchRest?.title;
+        const fetchedFavicon = fetchRest?.favicon;
+
         const systemPrompt = `You are a legal risk analyzer expert. 
         Your goal is to simplify complex Terms of Service or Privacy Policies and identify potential risks for everyday users.
         ${content ? "" : "You have access to a tool called 'googleSearch' to find latest policy information if the provided content is insufficient."}
@@ -315,8 +447,9 @@ async function startServer() {
           id: Math.random().toString(36).substring(7),
           timestamp: Date.now(),
           type: 'website',
-          title: hostname,
+          title: title || fetchedTitle || hostname,
           url: value,
+          favicon: req.body.favicon || fetchedFavicon || "",
           ...parsed
         });
       } else {
