@@ -87,6 +87,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     async function initializeAnalysis() {
+        // Pre-flight check: see if the server is actually reachable
+        try {
+            const healthCheck = await fetch(`${BASE_URL}/api/health`).catch(() => null);
+            if (!healthCheck || !healthCheck.ok) {
+                console.warn("Health check failed, checking if we need to update BASE_URL");
+                // If health check fails, the user might be on a different dev URL than what's in config
+                // We'll try to use the current tab's origin if it looks like an AI Studio project
+                const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+                const currentTab = tabs[0];
+                if (currentTab && currentTab.url && (currentTab.url.includes('europe-west1.run.app') || currentTab.url.includes('localhost'))) {
+                    const newBase = new URL(currentTab.url).origin;
+                    if (newBase !== BASE_URL) {
+                        console.log("Auto-updating BASE_URL to tab origin:", newBase);
+                        BASE_URL = newBase;
+                    }
+                }
+            }
+        } catch (e) {}
+
         const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
         const currentTab = tabs[0];
         
@@ -147,24 +166,31 @@ async function startAnalysis(url, domain) {
         // Ensure config is loaded before hitting API
         await loadConfig();
         
-        const response = await fetch(`${BASE_URL}/api/analyze`, {
+        const cleanBase = BASE_URL.endsWith('/') ? BASE_URL.slice(0, -1) : BASE_URL;
+        const response = await fetch(`${cleanBase}/api/analyze`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ type: 'website', value: url })
         });
 
         const contentType = response.headers.get('content-type');
+        
         if (!response.ok) {
-            let errorMessage = "Analysis failed";
+            let errorMessage = `Server error: ${response.status} ${response.statusText}`;
             if (contentType && contentType.includes('application/json')) {
                 const errData = await response.json();
                 errorMessage = errData.error || errorMessage;
+            } else if (contentType && contentType.includes('text/html')) {
+                // If it's HTML, it's likely a proxy redirect or error page from AI Studio
+                errorMessage = "The server returned an HTML page instead of JSON. This often happens if the extension's API URL is incorrect or if you are not logged into the application. Try visiting the app URL directly to ensure you are authenticated.";
             }
             throw new Error(errorMessage);
         }
 
         if (!contentType || !contentType.includes('application/json')) {
-            throw new Error("Server returned non-JSON response. Please check if you are logged in and the server is running.");
+            const bodyPreview = await response.text().then(t => t.substring(0, 100)).catch(() => "unknown");
+            console.error("Non-JSON Response Body Preview:", bodyPreview);
+            throw new Error(`Server returned non-JSON response (${contentType || 'no content-type'}). Please check if the BASE_URL in your extension config matches your current App URL.`);
         }
 
         const data = await response.json();

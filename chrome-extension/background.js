@@ -113,7 +113,8 @@ async function resetIcon() {
 
 async function analyzeDomain(domain, fullUrl, favicon) {
   try {
-    const response = await fetch(`${BASE_URL}/api/analyze`, {
+    const cleanBase = BASE_URL.endsWith('/') ? BASE_URL.slice(0, -1) : BASE_URL;
+    const response = await fetch(`${cleanBase}/api/analyze`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url: fullUrl })

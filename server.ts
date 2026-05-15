@@ -120,12 +120,36 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(cors());
+  // Enable CORS for all origins, including chrome extensions
+  app.use(cors({
+    origin: true, // Reflect request origin
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+  }));
   app.use(express.json());
+
+  // Logging middleware for API requests
+  app.use("/api", (req, res, next) => {
+    console.log(`[API] ${req.method} ${req.path} - Origin: ${req.headers.origin}`);
+    next();
+  });
 
   // API endpoint for health check
   app.get("/api/health", (req, res) => {
-    res.json({ status: "ok", service: "ClauseLens API" });
+    res.json({ 
+      status: "ok", 
+      service: "ClauseLens API",
+      env: {
+        hasGroqKey: !!process.env.GROQ_API_KEY,
+        hasSerperKey: !!process.env.SERPER_API_KEY,
+        nodeEnv: process.env.NODE_ENV
+      }
+    });
+  });
+
+  app.get("/api/ping", (req, res) => {
+    res.send("pong"); // Simple text response for testing
   });
 
   // Download Chrome Extension as ZIP
@@ -386,6 +410,16 @@ async function startServer() {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
+
+  // Global error handler
+  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error("Unhandled Server Error:", err);
+    res.status(500).json({ 
+      error: "Internal Server Error", 
+      message: err.message || "An unexpected error occurred",
+      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
+  });
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
