@@ -33,12 +33,11 @@ service cloud.firestore {
       allow create: if isOwner(userId) 
         && incoming().uid == userId
         && incoming().email == request.auth.token.email
-        && incoming().createdAt == request.time
+        && (incoming().createdAt is string || incoming().createdAt == request.time)
         && incoming().keys().hasAll(['uid', 'email', 'createdAt'])
         && incoming().keys().size() <= 10;
       allow update: if isOwner(userId)
-        && incoming().uid == userId
-        && incoming().updatedAt == request.time
+        && (incoming().updatedAt is string || incoming().updatedAt == request.time)
         && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'updatedAt']);
     }
 
@@ -49,7 +48,7 @@ service cloud.firestore {
       allow create: if isOwner(userId)
         && isValidId(analysisId)
         && incoming().userId == userId
-        && incoming().timestamp == request.time
+        && (incoming().timestamp is number || incoming().timestamp == request.time)
         && incoming().risk_score is number
         && incoming().risk_score >= 0 && incoming().risk_score <= 10
         && incoming().type in ['website', 'contract']

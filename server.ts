@@ -69,13 +69,34 @@ async function fetchWebsiteContent(url: string) {
       throw new Error("Private networks are blocked for security.");
     }
 
+    // Try with a standard browser User-Agent first to avoid being blocked as a bot
+    const userAgents = [
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    ];
+    
     const response = await fetch(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; ClauseLensBot/1.0; +https://clauselens.ai)'
+        'User-Agent': userAgents[Math.floor(Math.random() * userAgents.length)],
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
       }
     });
     
-    if (!response.ok) throw new Error(`Failed to fetch website: ${response.statusText}`);
+    if (response.status === 429) {
+      console.warn(`Rate limited (429) by ${url}`);
+      return null; // Let the AI fallback to search
+    }
+
+    if (response.status === 403) {
+      console.warn(`Forbidden (403) access to ${url}`);
+      return null; // Let the AI fallback to search
+    }
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch website: ${response.statusText} (${response.status})`);
+    }
     
     const text = await response.text();
     // Simple text extraction (strip tags)
@@ -86,6 +107,10 @@ async function fetchWebsiteContent(url: string) {
                .trim()
                .substring(0, 15000); // Limit to 15k chars for prompt
   } catch (error) {
+    if (error instanceof Error && (error.message.includes('Forbidden') || error.message.includes('Too Many Requests'))) {
+       // Silently fail for these as they are "expected" blocks we handle via search fallback
+       return null;
+    }
     console.error("Fetch Error:", error);
     return null;
   }

@@ -2,6 +2,9 @@
 <html>
 <head>
   <meta charset="UTF-8">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,700;0,800;1,900&display=swap" rel="stylesheet">
   <style>
     :root {
       --bg: #050B10;
@@ -14,7 +17,7 @@
     body {
       width: 350px;
       padding: 16px;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       margin: 0;
       background: var(--bg);
       color: var(--text);
@@ -33,19 +36,33 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      background: var(--card); /* Fallback */
     }
     .logo img {
       width: 100%;
       height: 100%;
       object-fit: cover;
+      display: block;
     }
     .title {
-      font-size: 18px;
-      font-weight: 800;
+      font-size: 20px;
+      font-weight: 900;
+      font-style: italic;
+      text-transform: uppercase;
       flex: 1;
-      letter-spacing: -0.02em;
+      letter-spacing: -0.05em;
     }
-    .highlight { color: var(--mint); }
+    .highlight { color: #E0FEF6; } /* Mint from website */
+    
+    .large-branding {
+      font-size: 32px;
+      font-weight: 900;
+      font-style: italic;
+      text-transform: uppercase;
+      letter-spacing: -0.06em;
+      margin-bottom: 24px;
+    }
+    .large-branding .highlight { color: #E0FEF6; }
     
     /* Loading State */
     #loading {
@@ -62,6 +79,20 @@
       margin: 0 auto 16px;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Login View */
+    #loginBtn {
+      cursor: pointer;
+      border: none;
+      background: #ffffff;
+      color: #000000;
+      font-weight: 800;
+      padding: 12px;
+      border-radius: 12px;
+      width: 100%;
+      transition: opacity 0.2s;
+    }
+    #loginBtn:hover { opacity: 0.9; }
 
     /* Results UI */
     .result-card {
@@ -201,7 +232,6 @@
 </head>
 <body>
   <div class="header">
-    <div class="logo"><img src="Clause.png" alt="Logo"></div>
     <div class="title">Clause<span class="highlight">Lens</span></div>
     <label class="switch">
       <input type="checkbox" id="scan-toggle" checked>
@@ -211,20 +241,18 @@
 
   <div id="intro-view" style="display: none; text-align: center; padding: 20px 0;">
     <p style="font-size: 14px; color: var(--muted); margin-bottom: 20px;">Real-time policy protection is <strong>OFF</strong>. Turn it on to scan site risks.</p>
-    <div style="opacity: 0.1; filter: grayscale(1); margin-bottom: 30px;">
-       <div class="logo" style="width: 60px; height: 60px; border-radius: 100%; margin: 0 auto; overflow: hidden;">
-         <img src="Clause.png" alt="Logo" style="width: 100%; height: 100%; object-fit: cover;">
-       </div>
+    <div class="large-branding" style="opacity: 0.2;">
+       Clause<span class="highlight">Lens</span>
     </div>
   </div>
 
   <div id="login-view" style="display: none; text-align: center; padding: 40px 20px;">
-    <div class="logo" style="width: 60px; height: 60px; border-radius: 100%; margin: 0 auto 24px; overflow: hidden; box-shadow: 0 0 30px rgba(34, 228, 162, 0.2);">
-      <img src="Clause.png" alt="Logo" style="width: 100%; height: 100%; object-fit: cover;">
+    <div class="large-branding" style="box-shadow: 0 10px 40px rgba(224, 254, 246, 0.05); display: inline-block; padding: 10px 20px; border-radius: 20px; background: rgba(224, 254, 246, 0.02); border: 1px solid rgba(224, 254, 246, 0.05); margin-bottom: 32px;">
+      Clause<span class="highlight">Lens</span>
     </div>
     <h2 style="font-size: 20px; font-weight: 900; margin-bottom: 12px; color: white;">SIGN IN REQUIRED</h2>
     <p style="font-size: 13px; color: var(--muted); margin-bottom: 32px; line-height: 1.5;">Join the community to unlock site analysis and protect your digital footprint.</p>
-    <button id="loginBtn" class="primary-btn" style="width: 100%; background: #ffffff; color: #000000; font-weight: 900; border: none; padding: 14px; border-radius: 12px; cursor: pointer; transition: all 0.2s;">
+    <button id="loginBtn">
       Go to Dashboard to Sign In
     </button>
   </div>

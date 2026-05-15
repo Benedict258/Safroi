@@ -11,12 +11,19 @@
   },
   "icons": {
     "16": "Clause.png",
+    "32": "Clause.png",
     "48": "Clause.png",
     "128": "Clause.png"
   },
   "background": {
     "service_worker": "background.js"
   },
+  "web_accessible_resources": [
+    {
+      "resources": ["Clause.png", "config.json"],
+      "matches": ["<all_urls>"]
+    }
+  ],
   "content_scripts": [
     {
       "matches": [

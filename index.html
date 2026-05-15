@@ -7,6 +7,42 @@
     <meta name="title" content="ClauseLens | Protecting your Digital FootPrint">
     <link rel="icon" type="image/png" href="/Clause.png">
     <link rel="apple-touch-icon" href="/Clause.png">
+    <script>
+      // Suppress Vite websocket and related errors in AI Studio preview
+      (function() {
+        const suppressList = ['WebSocket', 'socket', '[vite] failed to connect', 'HMR'];
+        
+        window.addEventListener('unhandledrejection', (event) => {
+          if (event.reason) {
+            const msg = event.reason.message || String(event.reason);
+            if (suppressList.some(s => msg.includes(s))) {
+              event.preventDefault();
+              event.stopPropagation();
+            }
+          }
+        }, true);
+
+        window.addEventListener('error', (event) => {
+          const msg = event.message || '';
+          if (suppressList.some(s => msg.includes(s))) {
+            event.preventDefault();
+            event.stopPropagation();
+          }
+        }, true);
+
+        const originalWarn = console.warn;
+        console.warn = (...args) => {
+          if (typeof args[0] === 'string' && suppressList.some(s => args[0].includes(s))) return;
+          originalWarn.apply(console, args);
+        };
+
+        const originalError = console.error;
+        console.error = (...args) => {
+          if (typeof args[0] === 'string' && suppressList.some(s => args[0].includes(s))) return;
+          originalError.apply(console, args);
+        };
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

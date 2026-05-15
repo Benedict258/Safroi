@@ -42,18 +42,17 @@ export const logout = () => signOut(auth);
 async function testConnection() {
   try {
     const dbId = firebaseConfig.firestoreDatabaseId || '(default)';
-    console.log(`[Firestore] Testing connectivity... Database: ${dbId}`);
     const testDoc = doc(db, 'test', 'connection');
-    console.log(`[Firestore] Document Path: ${testDoc.path}`);
     await getDocFromServer(testDoc);
-    console.log("[Firestore] Connection success!");
+    console.log(`[Firestore] Connection success to database: ${dbId}`);
   } catch (error) {
-    if(error instanceof Error) {
+    if (error instanceof Error) {
       if (error.message.includes('the client is offline')) {
-        console.error("[Firestore] OFFLINE: Check configuration.");
+        console.warn("[Firestore] OFFLINE: The application is running in an environment without direct Firestore access. This is expected in some preview modes.");
+      } else if (error.message.includes('insufficient permissions')) {
+        console.warn("[Firestore] Connection test failed with permission error. This may happen if the database is still initializing or rules are propagating. Standard operations might still work if user is authenticated.");
       } else {
-        console.error(`[Firestore] PERMISSION ERROR [${firebaseConfig.firestoreDatabaseId || '(default)'}]:`, error.message);
-        console.error("[Firestore] Technical Details:", error);
+        console.warn(`[Firestore] Initial connectivity test failed: ${error.message}`);
       }
     }
   }

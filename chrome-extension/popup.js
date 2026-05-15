@@ -1,14 +1,29 @@
 // ClauseLens Popup Script
 let BASE_URL = "http://localhost:3000"; // Fallback
+let isConfigLoaded = false;
+let configPromise = null;
 
-async function loadConfig() {
-    try {
-        const response = await fetch(chrome.runtime.getURL('config.json'));
-        const config = await response.json();
-        BASE_URL = config.BASE_URL;
-    } catch (e) {
-        console.warn("Config not found, using default URL", e);
-    }
+function loadConfig() {
+    if (configPromise) return configPromise;
+    configPromise = fetch(chrome.runtime.getURL('config.json'))
+        .then(async r => {
+            const contentType = r.headers.get('content-type');
+            if (!r.ok || !contentType || !contentType.includes('application/json')) {
+                throw new Error("Invalid config response");
+            }
+            return r.json();
+        })
+        .then(config => {
+            BASE_URL = config.BASE_URL;
+            isConfigLoaded = true;
+            return config;
+        })
+        .catch(e => {
+            console.warn("Config loading failed, using default URL", e);
+            isConfigLoaded = true;
+            return { BASE_URL };
+        });
+    return configPromise;
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -129,15 +144,27 @@ async function startAnalysis(url, domain) {
     showLoading();
     
     try {
+        // Ensure config is loaded before hitting API
+        await loadConfig();
+        
         const response = await fetch(`${BASE_URL}/api/analyze`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ type: 'website', value: url })
         });
 
+        const contentType = response.headers.get('content-type');
         if (!response.ok) {
-            const errData = await response.json();
-            throw new Error(errData.error || "Analysis failed");
+            let errorMessage = "Analysis failed";
+            if (contentType && contentType.includes('application/json')) {
+                const errData = await response.json();
+                errorMessage = errData.error || errorMessage;
+            }
+            throw new Error(errorMessage);
+        }
+
+        if (!contentType || !contentType.includes('application/json')) {
+            throw new Error("Server returned non-JSON response. Please check if you are logged in and the server is running.");
         }
 
         const data = await response.json();
@@ -183,10 +210,10 @@ function displayResult(data) {
         siteIcon.src = data.favicon;
         siteIcon.style.display = 'block';
         siteIcon.onerror = () => {
-            siteIcon.src = 'Clause.png';
+            siteIcon.src = chrome.runtime.getURL('Clause.png');
         };
     } else {
-        siteIcon.src = 'Clause.png';
+        siteIcon.src = chrome.runtime.getURL('Clause.png');
     }
     
     siteDomain.textContent = data.domain || 'Target Site';

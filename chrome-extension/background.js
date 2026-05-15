@@ -1,14 +1,26 @@
 // ClauseLens Background Service Worker
 let BASE_URL = "http://localhost:3000"; // Fallback
+let configPromise = null;
 
-async function loadConfig() {
-  try {
-    const response = await fetch(chrome.runtime.getURL('config.json'));
-    const config = await response.json();
-    BASE_URL = config.BASE_URL;
-  } catch (e) {
-    console.warn("Background: Config not found, using default URL", e);
-  }
+function loadConfig() {
+  if (configPromise) return configPromise;
+  configPromise = fetch(chrome.runtime.getURL('config.json'))
+    .then(async r => {
+      const contentType = r.headers.get('content-type');
+      if (!r.ok || !contentType || !contentType.includes('application/json')) {
+        throw new Error("Invalid config response");
+      }
+      return r.json();
+    })
+    .then(config => {
+      BASE_URL = config.BASE_URL;
+      return config;
+    })
+    .catch(e => {
+      console.warn("Background: Config loading failed", e);
+      return { BASE_URL };
+    });
+  return configPromise;
 }
 
 // Initial config load
@@ -24,7 +36,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // Throttle analysis to avoid hitting quotas too fast
 const domainCache = new Map();
 
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  await loadConfig();
   if (changeInfo.status === 'complete' && tab.url && tab.url.startsWith('http')) {
     const url = new URL(tab.url);
     const domain = url.hostname;
@@ -68,24 +81,32 @@ chrome.tabs.onActivated.addListener((activeInfo) => {
   });
 });
 
-function resetIcon() {
-  const ICON_SIZE = 32;
-  const canvas = new OffscreenCanvas(ICON_SIZE, ICON_SIZE);
-  const ctx = canvas.getContext('2d');
+async function resetIcon() {
+  try {
+    const ICON_SIZE = 32;
+    const canvas = new OffscreenCanvas(ICON_SIZE, ICON_SIZE);
+    const ctx = canvas.getContext('2d');
 
-  fetch(chrome.runtime.getURL('Clause.png'))
-    .then(r => r.blob())
-    .then(createImageBitmap)
-    .then(bitmap => {
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(ICON_SIZE / 2, ICON_SIZE / 2, ICON_SIZE / 2, 0, Math.PI * 2);
-      ctx.clip();
-      ctx.drawImage(bitmap, 0, 0, ICON_SIZE, ICON_SIZE);
-      ctx.restore();
-      const imageData = ctx.getImageData(0, 0, ICON_SIZE, ICON_SIZE);
-      chrome.action.setIcon({ imageData: { 32: imageData } });
-    });
+    ctx.clearRect(0, 0, ICON_SIZE, ICON_SIZE);
+    
+    // Draw Background Circle
+    ctx.beginPath();
+    ctx.arc(ICON_SIZE / 2, ICON_SIZE / 2, ICON_SIZE / 2, 0, Math.PI * 2);
+    ctx.fillStyle = '#050B10';
+    ctx.fill();
+    
+    // Draw "C" Logo
+    ctx.fillStyle = '#E0FEF6'; // Mint
+    ctx.font = 'bold italic 22px "Arial", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('C', ICON_SIZE / 2, ICON_SIZE / 2 + 1);
+
+    const imageData = ctx.getImageData(0, 0, ICON_SIZE, ICON_SIZE);
+    chrome.action.setIcon({ imageData: { 32: imageData } });
+  } catch (err) {
+    console.error("resetIcon Error:", err);
+  }
   
   chrome.action.setBadgeText({ text: "" });
 }
@@ -98,7 +119,11 @@ async function analyzeDomain(domain, fullUrl, favicon) {
       body: JSON.stringify({ url: fullUrl })
     });
 
-    if (!response.ok) throw new Error("Analysis failed");
+    const contentType = response.headers.get('content-type');
+    if (!response.ok || !contentType || !contentType.includes('application/json')) {
+      throw new Error(`Analysis failed for ${domain}`);
+    }
+    
     const data = await response.json();
     
     // Add additional metadata
@@ -116,49 +141,57 @@ async function analyzeDomain(domain, fullUrl, favicon) {
 }
 
 async function updateBadge(score) {
-  const ICON_SIZE = 32;
-  const canvas = new OffscreenCanvas(ICON_SIZE, ICON_SIZE);
-  const ctx = canvas.getContext('2d');
+  try {
+    const ICON_SIZE = 32;
+    const canvas = new OffscreenCanvas(ICON_SIZE, ICON_SIZE);
+    const ctx = canvas.getContext('2d');
 
-  // Load the base icon
-  const response = await fetch(chrome.runtime.getURL('Clause.png'));
-  const blob = await response.blob();
-  const bitmap = await createImageBitmap(blob);
+    // Clear canvas
+    ctx.clearRect(0, 0, ICON_SIZE, ICON_SIZE);
+    
+    // Draw Background Circle
+    ctx.beginPath();
+    ctx.arc(ICON_SIZE / 2, ICON_SIZE / 2, ICON_SIZE / 2, 0, Math.PI * 2);
+    ctx.fillStyle = '#050B10';
+    ctx.fill();
+    
+    // Draw "C" Logo
+    ctx.fillStyle = '#E0FEF6'; // Mint
+    ctx.font = 'bold italic 22px "Arial", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('C', ICON_SIZE / 2, ICON_SIZE / 2 + 1);
 
-  // Clear canvas and draw circular clipped icon
-  ctx.clearRect(0, 0, ICON_SIZE, ICON_SIZE);
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(ICON_SIZE / 2, ICON_SIZE / 2, ICON_SIZE / 2, 0, Math.PI * 2);
-  ctx.clip();
-  ctx.drawImage(bitmap, 0, 0, ICON_SIZE, ICON_SIZE);
-  ctx.restore();
+    // Determine dot color
+    let color = '#CCCCCC'; // Default Gray
+    if (score <= 3) color = '#22C55E'; // Green
+    else if (score <= 7) color = '#F59E0B'; // Yellow
+    else color = '#EF4444'; // Red
+    
+    // Draw small circular dot in the bottom right corner
+    const dotRadius = 5; 
+    const padding = 2;
+    const centerX = ICON_SIZE - dotRadius - padding;
+    const centerY = ICON_SIZE - dotRadius - padding;
 
-  // Determine dot color
-  let color = '#CCCCCC'; // Default Gray
-  if (score <= 3) color = '#22C55E'; // Green
-  else if (score <= 7) color = '#F59E0B'; // Yellow
-  else color = '#EF4444'; // Red
-  // Reset any global states that might interfere
-  ctx.globalCompositeOperation = 'source-over';
-  ctx.shadowBlur = 0;
-  ctx.globalAlpha = 1.0;
+    // Dot Shadow for visibility
+    ctx.shadowColor = 'rgba(0,0,0,0.5)';
+    ctx.shadowBlur = 4;
+    
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, dotRadius, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.closePath();
 
-  // Draw small circular dot in the bottom right corner
-  const dotRadius = 4.8; 
-  const padding = 2.5;
-  const centerX = ICON_SIZE - dotRadius - padding;
-  const centerY = ICON_SIZE - dotRadius - padding;
-
-  // Draw the colored dot - EXPLICITLY SOLID
-  ctx.beginPath();
-  ctx.arc(centerX, centerY, dotRadius, 0, Math.PI * 2);
-  ctx.fillStyle = color;
-  ctx.fill();
-  ctx.closePath();
-  const imageData = ctx.getImageData(0, 0, ICON_SIZE, ICON_SIZE);
-  chrome.action.setIcon({ imageData: { 32: imageData } });
+    const imageData = ctx.getImageData(0, 0, ICON_SIZE, ICON_SIZE);
+    chrome.action.setIcon({ imageData: { 32: imageData } });
+  } catch (err) {
+    console.error("updateBadge Error:", err);
+  }
   
-  // Clear any existing text badge
   chrome.action.setBadgeText({ text: "" });
 }
