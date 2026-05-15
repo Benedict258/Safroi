@@ -203,21 +203,46 @@ function displayResult(data) {
     
     // Site Info Header
     const siteIcon = document.getElementById('siteIcon');
+    const siteLetter = document.getElementById('siteLetter');
     const siteName = document.getElementById('siteName');
     const siteDomain = document.getElementById('siteDomain');
     
-    if (data.favicon && data.favicon !== "") {
-        siteIcon.src = data.favicon;
-        siteIcon.style.display = 'block';
-        siteIcon.onerror = () => {
-            siteIcon.src = chrome.runtime.getURL('Clause.png');
-        };
-    } else {
-        siteIcon.src = chrome.runtime.getURL('Clause.png');
-    }
+    const domain = data.domain || 'Target Site';
+    siteDomain.textContent = domain;
     
-    siteDomain.textContent = data.domain || 'Target Site';
-    siteName.textContent = (data.domain || 'Target Site').split('.')[0].toUpperCase();
+    // Better name extraction
+    let displayName = domain;
+    try {
+        const parts = domain.split('.');
+        if (parts.length >= 2) {
+            // Handle common subdomains
+            if (parts[0] === 'www' || parts[0] === 'app' || parts[0] === 'docs') {
+                displayName = parts[1];
+            } else {
+                displayName = parts[0];
+            }
+        }
+    } catch (e) {}
+    siteName.textContent = displayName.charAt(0).toUpperCase() + displayName.slice(1);
+
+    // Resilient Icon logic
+    siteLetter.textContent = displayName.charAt(0).toUpperCase();
+    siteLetter.style.display = 'block';
+    siteIcon.style.display = 'none';
+
+    if (data.favicon && data.favicon !== "") {
+        const img = new Image();
+        img.onload = () => {
+            siteIcon.src = data.favicon;
+            siteIcon.style.display = 'block';
+            siteLetter.style.display = 'none';
+        };
+        img.onerror = () => {
+            siteIcon.style.display = 'none';
+            siteLetter.style.display = 'block';
+        };
+        img.src = data.favicon;
+    }
 
     scoreValue.textContent = `${data.risk_score}/10`;
     summaryText.textContent = data.summary;
