@@ -1,6 +1,8 @@
 {
   "name": "ClauseLens | Protecting your Digital FootPrint",
-  "description": "Built by TeamSuiaah. AI-powered legal risk analysis. Protect your footprint on the internet by understanding exactly what you agree to.",
+  "description": "AI-powered legal risk analyzer that simplifies Terms of Service and Privacy Policies into clear, actionable insights to protect your digital footprint.",
   "requestFramePermissions": [],
-  "majorCapabilities": []
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

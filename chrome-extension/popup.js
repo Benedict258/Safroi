@@ -1,5 +1,5 @@
 // ClauseLens Popup Script
-let BASE_URL = "https://clauselens-257251079622.us-west1.run.app"; // Default production
+let BASE_URL = "https://clauselens.suirify.com"; // Default production
 let isConfigLoaded = false;
 let configPromise = null;
 
@@ -9,33 +9,54 @@ async function detectEnvironment() {
         const currentTab = tabs[0];
         if (currentTab && currentTab.url) {
             const url = new URL(currentTab.url);
-            if (url.hostname.includes('run.app') || url.hostname.includes('localhost')) {
-                console.log("Auto-detected environment from tab:", url.origin);
+            // If we are currently ON a ClauseLens app domain, prioritize that origin
+            if (url.hostname.includes('run.app') || url.hostname.includes('localhost') || url.hostname === 'clauselens.suirify.com') {
+                console.log("ClauseLens: Auto-detected environment from tab:", url.origin);
                 BASE_URL = url.origin;
+                return true; 
             }
         }
     } catch (e) {
-        console.warn("Env detection failed", e);
+        console.warn("ClauseLens: Env detection failed", e);
     }
+    return false;
 }
 
 function loadConfig() {
     if (configPromise) return configPromise;
     configPromise = (async () => {
-        await detectEnvironment();
-        try {
-            const r = await fetch(chrome.runtime.getURL('config.json'));
-            const contentType = r.headers.get('content-type');
-            if (r.ok && contentType && contentType.includes('application/json')) {
-                const config = await r.json();
-                if (config.BASE_URL) {
-                    BASE_URL = config.BASE_URL;
-                }
-            }
-        } catch (e) {
-            console.warn("Config loading failed, using detected URL", e);
+        // 1. Try to get persisted URL from previous detection
+        const stored = await new Promise(resolve => chrome.storage.local.get(['PERSISTED_BASE_URL'], resolve));
+        if (stored.PERSISTED_BASE_URL) {
+            console.log("ClauseLens: Using persisted BASE_URL:", stored.PERSISTED_BASE_URL);
+            BASE_URL = stored.PERSISTED_BASE_URL;
         }
+
+        // 2. Try to detect environment from current tab (most reliable)
+        const detected = await detectEnvironment();
+        if (detected) {
+            chrome.storage.local.set({ PERSISTED_BASE_URL: BASE_URL });
+        }
+        
+        // 3. Fallback to config.json ONLY if we have no detection or persistence
+        if (!detected && !stored.PERSISTED_BASE_URL) {
+            try {
+                const r = await fetch(chrome.runtime.getURL('config.json'));
+                const contentType = r.headers.get('content-type');
+                if (r.ok && contentType && contentType.includes('application/json')) {
+                    const config = await r.json();
+                    if (config.BASE_URL) {
+                        console.log("ClauseLens: Using BASE_URL from config.json:", config.BASE_URL);
+                        BASE_URL = config.BASE_URL;
+                    }
+                }
+            } catch (e) {
+                console.warn("ClauseLens: Config loading skipped or failed", e);
+            }
+        }
+        
         isConfigLoaded = true;
+        console.log("ClauseLens: Final BASE_URL for this session:", BASE_URL);
         return { BASE_URL };
     })();
     return configPromise;
@@ -197,7 +218,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const tabs = await chrome.tabs.query({});
             let foundApp = false;
             for (const tab of tabs) {
-                if (tab.url && (tab.url.includes('europe-west1.run.app') || tab.url.includes('localhost'))) {
+                if (tab.url && (tab.url.includes('europe-west1.run.app') || tab.url.includes('localhost') || tab.url.includes('clauselens.suirify.com'))) {
                     foundApp = true;
                     try {
                         await chrome.scripting.executeScript({
@@ -219,6 +240,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!foundApp) {
                 alert("Please open the ClauseLens web app first, sign in, and then click refresh.");
             } else {
+                // Persistent the newly detected URL
+                await loadConfig();
+                chrome.storage.local.set({ PERSISTED_BASE_URL: BASE_URL });
+                
                 // Give it a moment to sync
                 setTimeout(() => {
                     chrome.storage.local.get(['auth_user'], (result) => {

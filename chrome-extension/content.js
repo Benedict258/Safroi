@@ -6,7 +6,8 @@ function syncAuth() {
     const isAppDomain = window.location.hostname.includes('europe-west1.run.app') || 
                         window.location.hostname === 'localhost' ||
                         window.location.hostname.includes('ais-pre-') ||
-                        window.location.hostname.includes('ais-dev-');
+                        window.location.hostname.includes('ais-dev-') ||
+                        window.location.hostname === 'clauselens.suirify.com';
 
     if (!isAppDomain) return;
 

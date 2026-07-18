@@ -188,7 +188,10 @@ async function startServer() {
 
   // Enable CORS for all origins, including chrome extensions
   app.use(cors({
-    origin: true, // Reflect request origin
+    origin: (origin, callback) => {
+      // Allow all origins (required for Chrome Extension support)
+      callback(null, true);
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
