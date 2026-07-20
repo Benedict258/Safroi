@@ -1,31 +1,31 @@
-// ClauseLens Content Script
+// Safroi Content Script
 // Syncs auth status with the extension
 
 function syncAuth() {
-    // Only attempt sync on known ClauseLens domains
+    // Only attempt sync on known Safroi domains
     const isAppDomain = window.location.hostname.includes('europe-west1.run.app') || 
                         window.location.hostname === 'localhost' ||
                         window.location.hostname.includes('ais-pre-') ||
                         window.location.hostname.includes('ais-dev-') ||
-                        window.location.hostname === 'clauselens.suirify.com';
+                        window.location.hostname === 'safroi.suirify.com';
 
     if (!isAppDomain) return;
 
-    console.log("ClauseLens: Checking auth status on app domain...");
+    console.log("Safroi: Checking auth status on app domain...");
     // Check our custom key first
-    const userStatusStr = localStorage.getItem('clauselens_auth_status');
+    const userStatusStr = localStorage.getItem('safroi_auth_status');
     
     if (userStatusStr) {
         try {
             const data = JSON.parse(userStatusStr);
             if (data && data.loggedIn) {
-                console.log("ClauseLens: Found custom auth status:", data.loggedIn);
+                console.log("Safroi: Found custom auth status:", data.loggedIn);
                 if (chrome.runtime?.id) {
                     chrome.runtime.sendMessage({ type: 'SYNC_AUTH', data: data }).catch(e => {});
                 }
             }
         } catch (e) {
-            console.error("ClauseLens: Error parsing auth status", e);
+            console.error("Safroi: Error parsing auth status", e);
         }
     } else {
         // Check for Firebase standard keys as a fallback
@@ -37,7 +37,7 @@ function syncAuth() {
                     if (val) {
                         const data = JSON.parse(val);
                         if (data) {
-                            console.log("ClauseLens: Found Firebase auth status for:", data.email);
+                            console.log("Safroi: Found Firebase auth status for:", data.email);
                             if (chrome.runtime?.id) {
                                 chrome.runtime.sendMessage({ 
                                     type: 'SYNC_AUTH', 
@@ -55,14 +55,14 @@ function syncAuth() {
                 }
             }
         } catch (e) {
-            console.warn("ClauseLens: Error scanning localStorage", e);
+            console.warn("Safroi: Error scanning localStorage", e);
         }
     }
 }
 
 // Listen for storage changes in the window
 window.addEventListener('storage', (event) => {
-    if (event.key === 'clauselens_auth_status' || (event.key && event.key.startsWith('firebase:authUser:'))) {
+    if (event.key === 'safroi_auth_status' || (event.key && event.key.startsWith('firebase:authUser:'))) {
         syncAuth();
     }
 });

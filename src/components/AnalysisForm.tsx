@@ -53,7 +53,7 @@ export function AnalysisForm({ onAnalyze, isLoading }: AnalysisFormProps) {
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx']
     },
     multiple: false
-  } as any);
+  } as any); // react-dropzone v15 type compatibility — accept prop is valid at runtime
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

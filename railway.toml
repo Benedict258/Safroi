@@ -1,0 +1,12 @@
+[build]
+builder = "nixpacks"
+
+[build.nixpacks]
+nixPkgs = ["nodejs_20"]
+installCommand = "npm ci"
+buildCommand = "npm run build"
+startCommand = "node dist/server.cjs"
+
+# Railway will inject DATABASE_URL automatically when the PostgreSQL
+# plugin is attached. Add these env vars in your Railway dashboard:
+#   GROQ_API_KEY - your Groq API key

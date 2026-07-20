@@ -1,8 +1,12 @@
 {
-  "name": "react-example",
+  "name": "safroi",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "AI-powered legal intelligence platform for analyzing Terms of Service and Privacy Policies",
   "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "dev": "tsx server.ts",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
@@ -23,6 +27,7 @@
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "openai": "^6.37.0",
+    "pg": "^8.22.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-dropzone": "^15.0.0",
@@ -31,6 +36,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
     "autoprefixer": "^10.4.21",

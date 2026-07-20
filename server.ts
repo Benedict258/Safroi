@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
@@ -6,6 +7,8 @@ import OpenAI from "openai";
 import AdmZip from "adm-zip";
 import fs from "fs";
 import cors from "cors";
+import { query, testConnection } from "./src/db/index";
+import { runMigrations } from "./src/db/migrate";
 import { initializeApp } from "firebase/app";
 import { 
   getAuth, 
@@ -16,16 +19,41 @@ import {
 } from "firebase/auth";
 
 // Load Firebase config manually for better compatibility with bundlers
-let firebaseConfig: any;
+interface FirebaseConfig {
+  projectId: string;
+  appId: string;
+  apiKey: string;
+  authDomain: string;
+  firestoreDatabaseId?: string;
+  storageBucket: string;
+  messagingSenderId: string;
+  measurementId?: string;
+}
+
+interface SearchResultItem {
+  title: string;
+  link: string;
+  snippet: string;
+}
+
+interface ToolCall {
+  id: string;
+  function: {
+    name: string;
+    arguments: string;
+  };
+}
+
+let firebaseConfig: FirebaseConfig | null = null;
 try {
-  const configPath = path.join(process.cwd(), "firebase-applet-config.json");
+  const configPath = path.join(process.cwd(), "firebase-config.json");
   if (fs.existsSync(configPath)) {
     firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
   } else {
-    console.warn("firebase-applet-config.json not found. Backend auth proxy will be disabled.");
+    console.warn("firebase-config.json not found. Backend auth proxy will be disabled.");
   }
 } catch (error) {
-  console.error("Error loading firebase-applet-config.json:", error);
+  console.error("Error loading firebase-config.json:", error);
 }
 
 
@@ -38,7 +66,7 @@ function getAI() {
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
       console.error("CRITICAL: GROQ_API_KEY is not defined in process.env");
-      throw new Error("GROQ_API_KEY is missing. Please ensure it is set in the AI Studio Settings/Secrets menu.");
+      throw new Error("GROQ_API_KEY is missing. Set it in your .env file or environment variables.");
     }
     
     groq = new OpenAI({
@@ -47,6 +75,19 @@ function getAI() {
     });
   }
   return groq;
+}
+
+function validateEnv() {
+  const required = ['GROQ_API_KEY'];
+  const missing = required.filter(k => !process.env[k]);
+  if (missing.length > 0) {
+    console.warn(`WARNING: Missing environment variables: ${missing.join(', ')}.`);
+    console.warn('AI analysis features will fail until these are configured.');
+    console.warn('Set them in .env or your deployment secrets panel.');
+    return false;
+  }
+  console.log('Environment validated successfully.');
+  return true;
 }
 
 // Google Search Tool via Serper.dev
@@ -68,7 +109,7 @@ async function googleSearch(query: string) {
     });
     
     const data = await response.json();
-    const results = data.organic?.slice(0, 3).map((r: any) => ({
+    const results = data.organic?.slice(0, 3).map((r: SearchResultItem) => ({
       title: r.title,
       link: r.link,
       snippet: r.snippet
@@ -81,29 +122,58 @@ async function googleSearch(query: string) {
   }
 }
 
-// Simple URL safety check and fetcher
+// Hardened URL safety check and fetcher
 async function fetchWebsiteContent(url: string) {
   try {
-    const parsedUrl = new URL(url);
-    const blockedHosts = ['localhost', '127.0.0.1', '0.0.0.0'];
-    if (blockedHosts.includes(parsedUrl.hostname) || parsedUrl.hostname.startsWith('192.168.') || parsedUrl.hostname.startsWith('10.')) {
-      throw new Error("Private networks are blocked for security.");
+    if (url.length > 2048) {
+      throw new Error("URL exceeds maximum length.");
     }
 
-    const userAgents = [
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    ];
-    
+    const parsedUrl = new URL(url);
+
+    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+      throw new Error("Only HTTP and HTTPS protocols are allowed.");
+    }
+
+    const hostname = parsedUrl.hostname.toLowerCase();
+
+    const isPrivate = 
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '0.0.0.0' ||
+      hostname === '[::1]' ||
+      hostname === '[::]' ||
+      hostname.match(/^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|0\.|169\.254\.|fc|fd)/) ||
+      hostname.endsWith('.local') ||
+      hostname.endsWith('.internal') ||
+      hostname.match(/^0x[0-9a-f]+$/i) ||
+      hostname.match(/^0[0-7]+$/);
+
+    if (isPrivate) {
+      throw new Error("Private and internal networks are blocked for security.");
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+
     const response = await fetch(url, {
-      headers: {
-        'User-Agent': userAgents[0],
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        },
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeout);
+
+      if (!response.ok) return null;
+
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('text/html') && !contentType.includes('text/plain')) {
+        return null;
       }
-    });
-    
-    if (!response.ok) return null;
-    
-    const html = await response.text();
+
+      const html = await response.text();
     
     // Extract metadata
     let title = "";
@@ -142,6 +212,7 @@ async function fetchWebsiteContent(url: string) {
 }
 
 async function startServer() {
+  validateEnv();
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
@@ -159,14 +230,14 @@ async function startServer() {
   const getProfessionalResetEmail = (email: string) => `
     <div style="font-family: 'Inter', sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; background-color: #050B10; color: #FFFFFF; border-radius: 24px; border: 1px solid rgba(255, 255, 255, 0.1);">
       <div style="text-align: center; margin-bottom: 32px;">
-        <h1 style="color: #22E4A2; font-size: 28px; font-weight: 900; letter-spacing: -1px; margin: 0;">ClauseLens</h1>
+        <h1 style="color: #22E4A2; font-size: 28px; font-weight: 900; letter-spacing: -1px; margin: 0;">Safroi</h1>
         <p style="color: rgba(255, 255, 255, 0.6); font-size: 14px; margin-top: 8px;">Smart Contract Intelligence</p>
       </div>
       
       <div style="background-color: rgba(255, 255, 255, 0.03); padding: 32px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.05);">
         <h2 style="font-size: 20px; font-weight: 700; margin-top: 0; margin-bottom: 16px;">Reset your password</h2>
         <p style="line-height: 1.6; color: rgba(255, 255, 255, 0.8);">Hello,</p>
-        <p style="line-height: 1.6; color: rgba(255, 255, 255, 0.8);">We received a request to reset the password for your ClauseLens account (${email}). If you didn't request this, you can safely ignore this email.</p>
+        <p style="line-height: 1.6; color: rgba(255, 255, 255, 0.8);">We received a request to reset the password for your Safroi account (${email}). If you didn't request this, you can safely ignore this email.</p>
         
         <div style="margin: 32px 0; text-align: center;">
           <a href="{{URL}}" style="background-color: #22E4A2; color: #050B10; padding: 14px 32px; border-radius: 12px; text-decoration: none; font-weight: 900; display: inline-block; transition: all 0.2s ease;">
@@ -179,7 +250,7 @@ async function startServer() {
       
       <div style="text-align: center; margin-top: 32px;">
         <p style="font-size: 12px; color: rgba(255, 255, 255, 0.3);">
-          &copy; 2026 ClauseLens AI. All rights reserved.<br/>
+          &copy; 2026 Safroi AI. All rights reserved.<br/>
           Designed for clarity and security.
         </p>
       </div>
@@ -208,7 +279,7 @@ async function startServer() {
   app.get("/api/health", (req, res) => {
     res.json({ 
       status: "ok", 
-      service: "ClauseLens API",
+      service: "Safroi API",
       env: {
         hasGroqKey: !!process.env.GROQ_API_KEY,
         hasSerperKey: !!process.env.SERPER_API_KEY,
@@ -235,9 +306,10 @@ async function startServer() {
         displayName: result.user.displayName || email.split('@')[0],
         loggedIn: true
       });
-    } catch (error: any) {
-      console.error("Extension login error:", error);
-      res.status(401).json({ error: error.message || "Invalid credentials" });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Invalid credentials";
+      console.error("Extension login error:", msg);
+      res.status(401).json({ error: msg });
     }
   });
 
@@ -255,9 +327,10 @@ async function startServer() {
         displayName: name,
         loggedIn: true
       });
-    } catch (error: any) {
-      console.error("Extension signup error:", error);
-      res.status(400).json({ error: error.message || "Signup failed" });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Signup failed";
+      console.error("Extension signup error:", msg);
+      res.status(400).json({ error: msg });
     }
   });
 
@@ -275,11 +348,12 @@ async function startServer() {
       
       res.json({ 
         message: "Reset link sent",
-        templateRecommendation: "To align with our professional UI, we recommend updating your Firebase Console Email Template with the customized ClauseLens design."
+        templateRecommendation: "To align with our professional UI, we recommend updating your Firebase Console Email Template with the customized Safroi design."
       });
-    } catch (error: any) {
-      console.error("Extension reset error:", error);
-      res.status(400).json({ error: error.message || "Reset failed" });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Reset failed";
+      console.error("Extension reset error:", msg);
+      res.status(400).json({ error: msg });
     }
   });
 
@@ -307,7 +381,7 @@ async function startServer() {
         
         res.set({
           "Content-Type": "application/zip",
-          "Content-Disposition": "attachment; filename=clauselens_extension.zip",
+          "Content-Disposition": "attachment; filename=safroi_extension.zip",
           "Content-Length": zipBuffer.length,
         });
         
@@ -375,7 +449,7 @@ async function startServer() {
           });
         } else {
           // Path B: SEARCH PATH - Need to use search tools
-          const tools: any[] = [
+          const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
             {
               type: "function",
               function: {
@@ -392,7 +466,7 @@ async function startServer() {
             }
           ];
 
-          let messages: any[] = [
+          let messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt }
           ];
@@ -410,7 +484,7 @@ async function startServer() {
             messages.push(responseMessage);
             
             for (const toolCall of responseMessage.tool_calls) {
-              const tc = toolCall as any;
+              const tc = toolCall as unknown as ToolCall;
               const functionInstanceName = tc.function.name;
               const functionArgs = JSON.parse(tc.function.arguments);
               
@@ -418,10 +492,10 @@ async function startServer() {
                 const searchResult = await googleSearch(functionArgs.query);
                 messages.push({
                   tool_call_id: tc.id,
-                  role: "tool",
+                  role: "tool" as const,
                   name: functionInstanceName,
                   content: searchResult,
-                });
+                } as OpenAI.Chat.Completions.ChatCompletionMessageParam);
               }
             }
             
@@ -467,6 +541,7 @@ async function startServer() {
         Response must be valid JSON with this schema:
         {
           "summary": "string",
+          "risk_score": number (1-10),
           "key_points": ["string"],
           "risks": [{"clause": "string", "risk": "string", "severity": "low"|"medium"|"high"}]
         }`;
@@ -482,7 +557,7 @@ async function startServer() {
         });
 
         const parsed = JSON.parse(chatCompletion.choices[0].message.content || "{}");
-        const risks = (parsed.risks || []).map((r: any) => ({
+        const risks = (parsed.risks || []).map((r: { clause: string; risk: string; severity: string }) => ({
           title: r.clause,
           description: r.risk,
           severity: r.severity
@@ -493,6 +568,7 @@ async function startServer() {
           timestamp: Date.now(),
           type: 'contract',
           title: title || "Contract Analysis",
+          risk_score: parsed.risk_score || 1,
           summary: parsed.summary,
           key_points: parsed.key_points,
           risks,
@@ -532,6 +608,80 @@ async function startServer() {
     }
   });
 
+  // History API (PostgreSQL-backed)
+  app.post("/api/history", async (req, res) => {
+    try {
+      const { userId, analysis } = req.body;
+      if (!userId || !analysis) return res.status(400).json({ error: "userId and analysis required" });
+
+      await query(
+        `INSERT INTO analyses (id, user_id, type, title, url, summary, risk_score, risks, key_points, original_text)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         ON CONFLICT (id) DO NOTHING`,
+        [
+          analysis.id, userId, analysis.type, analysis.title, analysis.url || null,
+          analysis.summary, analysis.risk_score, JSON.stringify(analysis.risks || []),
+          analysis.key_points ? JSON.stringify(analysis.key_points) : null,
+          analysis.original_text || null,
+        ]
+      );
+
+      await query(
+        `INSERT INTO users (id, email, display_name, photo_url)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (id) DO UPDATE SET updated_at = NOW()`,
+        [userId, userId, userId, null]
+      );
+
+      res.json({ saved: true });
+    } catch (err) {
+      console.error("History save error:", err);
+      res.status(500).json({ error: "Failed to save analysis" });
+    }
+  });
+
+  app.get("/api/history/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const result = await query(
+        `SELECT id, type, title, url, risk_score, created_at
+         FROM analyses WHERE user_id = $1
+         ORDER BY created_at DESC LIMIT 50`,
+        [userId]
+      );
+      res.json(result.rows);
+    } catch (err) {
+      console.error("History fetch error:", err);
+      res.status(500).json({ error: "Failed to fetch history" });
+    }
+  });
+
+  app.get("/api/history/:userId/:id", async (req, res) => {
+    try {
+      const { userId, id } = req.params;
+      const result = await query(
+        `SELECT * FROM analyses WHERE id = $1 AND user_id = $2`,
+        [id, userId]
+      );
+      if (result.rows.length === 0) return res.status(404).json({ error: "Not found" });
+      res.json(result.rows[0]);
+    } catch (err) {
+      console.error("History detail error:", err);
+      res.status(500).json({ error: "Failed to fetch analysis" });
+    }
+  });
+
+  app.delete("/api/history/:userId/:id", async (req, res) => {
+    try {
+      const { userId, id } = req.params;
+      await query(`DELETE FROM analyses WHERE id = $1 AND user_id = $2`, [id, userId]);
+      res.json({ deleted: true });
+    } catch (err) {
+      console.error("History delete error:", err);
+      res.status(500).json({ error: "Failed to delete analysis" });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
@@ -548,7 +698,7 @@ async function startServer() {
   }
 
   // Global error handler
-  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
     console.error("Unhandled Server Error:", err);
     res.status(500).json({ 
       error: "Internal Server Error", 
@@ -559,6 +709,7 @@ async function startServer() {
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
+    runMigrations();
   });
 }
 

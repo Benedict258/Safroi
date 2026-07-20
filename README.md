@@ -1,11 +1,11 @@
-# ClauseLens | AI-Powered Legal Intelligence
+# Safroi | AI-Powered Legal Intelligence
 
-**ClauseLens** is a cutting-edge digital guardian built by **TeamSuiaah** to help users take control of their privacy and digital footprint. Most people blindly click "I Agree" to Terms of Service and Privacy Policies; ClauseLens ensures you never have to do that again by deconstructing complex legal jargon into actionable risk scores and clear summaries.
+**Safroi** is a cutting-edge digital guardian built by **TeamSuiaah** to help users take control of their privacy and digital footprint. Most people blindly click "I Agree" to Terms of Service and Privacy Policies; Safroi ensures you never have to do that again by deconstructing complex legal jargon into actionable risk scores and clear summaries.
 
 ---
 
 ## 🌐 Live URL
-Access the platform at: **[https://clauselens.suirify.com/](https://clauselens.suirify.com/)**
+Access the platform at: **[https://safroi.suirify.com/](https://safroi.suirify.com/)**
 
 ---
 
@@ -35,19 +35,19 @@ Access the platform at: **[https://clauselens.suirify.com/](https://clauselens.s
 ---
 
 ## 📱 Responsive Design
-ClauseLens is fully optimized for all screen sizes:
+Safroi is fully optimized for all screen sizes:
 - **Mobile**: Features a dedicated toggle-based hamburger menu and touch-optimized navigation.
 - **Desktop**: Leverages ultra-wide layouts with high-density information display.
 
 ---
 
 ## 🛡️ Trust & Transparency
-We believe in radical transparency. ClauseLens does not track your personal browsing history. We only process the data you explicitly submit for analysis. You can find our full **Terms of Service** and **Privacy Policy** within the application dashboard.
+We believe in radical transparency. Safroi does not track your personal browsing history. We only process the data you explicitly submit for analysis. You can find our full **Terms of Service** and **Privacy Policy** within the application dashboard.
 
 ---
 
 ## 👥 The Team
-ClauseLens is proudly developed and maintained by **TeamSuiaah** as part of the **Suirify Ecosystem**.
+Safroi is proudly developed and maintained by **TeamSuiaah** as part of the **Suirify Ecosystem**.
 
 ### Core Builders
 - **Benedict Isaac**

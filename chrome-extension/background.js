@@ -1,4 +1,4 @@
-// ClauseLens Background Service Worker
+// Safroi Background Service Worker
 let BASE_URL = "http://localhost:3000"; // Fallback
 let configPromise = null;
 

@@ -1,8 +1,0 @@
-{
-  "name": "ClauseLens | Protecting your Digital FootPrint",
-  "description": "AI-powered legal risk analyzer that simplifies Terms of Service and Privacy Policies into clear, actionable insights to protect your digital footprint.",
-  "requestFramePermissions": [],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
-}

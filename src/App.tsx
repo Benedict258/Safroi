@@ -30,20 +30,20 @@ export default function App() {
   const { history, addToHistory, getAnalysis, clearHistory } = useHistory();
 
   React.useEffect(() => {
-    document.title = "ClauseLens | Protecting your Digital FootPrint";
+    document.title = "Safroi | Protecting your Digital FootPrint";
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user);
       setIsAuthLoading(false);
       if (user) {
         setShowAuthModal(false);
-        localStorage.setItem('clauselens_auth_status', JSON.stringify({
+        localStorage.setItem('safroi_auth_status', JSON.stringify({
           uid: user.uid,
           email: user.email,
           displayName: user.displayName,
           loggedIn: true
         }));
       } else {
-        localStorage.removeItem('clauselens_auth_status');
+        localStorage.removeItem('safroi_auth_status');
       }
     });
 
@@ -127,7 +127,7 @@ export default function App() {
                   {authMode === 'login' 
                     ? 'Sign in to access your analyses and secure your footprint.' 
                     : authMode === 'signup' 
-                    ? 'Join ClauseLens to start identifying digital risks today.'
+                    ? 'Join Safroi to start identifying digital risks today.'
                     : 'Enter your email to receive a password reset link.'}
                 </p>
               </div>
@@ -172,8 +172,8 @@ export default function App() {
                     setAuthSuccess("A professional reset link has been dispatched to your inbox. Please check your email to proceed.");
                     setTimeout(() => setAuthMode('login'), 5000);
                   }
-                } catch (err: any) {
-                  setAuthError(err.message || "Authentication failed");
+                } catch (err: unknown) {
+                  setAuthError(err instanceof Error ? err.message : "Authentication failed");
                 } finally {
                   setIsSubmitting(false);
                 }
@@ -271,7 +271,7 @@ export default function App() {
               <div className="text-center pt-2">
                 {authMode === 'login' ? (
                   <p className="text-xs font-bold text-white/40">
-                    New to ClauseLens? {' '}
+                    New to Safroi? {' '}
                     <button onClick={() => setAuthMode('signup')} className="text-mint hover:underline">Create an account</button>
                   </p>
                 ) : (
@@ -360,8 +360,8 @@ export default function App() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row justify-between items-center gap-8 mb-12">
             <div className="space-y-4 text-center md:text-left">
-              <div className="text-2xl font-black italic uppercase">Clause<span className="text-mint">Lens</span></div>
-              <p className="text-white/40 max-w-xs font-medium">Built by <span className="text-white">TeamSuiaah</span> to protect your digital footprint.</p>
+              <div className="text-2xl font-black italic uppercase">Safroi</div>
+              <p className="text-white/40 max-w-xs font-medium">Built by <span className="text-white">TeamSuiaah</span> to keep you safe online.</p>
             </div>
             <div className="flex flex-wrap gap-x-12 gap-y-8 justify-center md:justify-end">
               <div className="space-y-4 min-w-[120px]">
@@ -390,7 +390,7 @@ export default function App() {
             </div>
           </div>
           <div className="pt-8 border-t border-white/5 text-center text-white/10 text-xs font-bold tracking-widest uppercase">
-            <p>© 2026 ClauseLens by TeamSuiaah. Integration with Suirify Platform. All rights reserved.</p>
+            <p>© 2026 Safroi by TeamSuiaah. Integration with Suirify Platform. All rights reserved.</p>
           </div>
         </div>
       </footer>
@@ -507,7 +507,7 @@ function LandingPage({ onStart, user, onLogin }: { onStart: () => void, user: Us
                     <div className="w-3 h-3 rounded-full bg-yellow-400/20"></div>
                     <div className="w-3 h-3 rounded-full bg-mint/20"></div>
                   </div>
-                  <div className="text-[10px] text-white/20 font-bold uppercase tracking-widest">ClauseLens Proxy</div>
+                  <div className="text-[10px] text-white/20 font-bold uppercase tracking-widest">Safroi Proxy</div>
                 </div>
                 <div className="p-8 space-y-6">
                   <div className="flex justify-between items-center">
@@ -587,7 +587,7 @@ function About() {
   return (
     <div className="max-w-4xl mx-auto space-y-12 md:space-y-20 py-10 px-4">
       <div className="space-y-6 md:space-y-8 text-center">
-        <h1 className="text-4xl md:text-6xl font-black tracking-tight italic uppercase leading-none">About <br /> Clause<span className="text-mint">Lens</span></h1>
+        <h1 className="text-4xl md:text-6xl font-black tracking-tight italic uppercase leading-none">About <br /> Safroi</h1>
         <p className="text-xl md:text-2xl text-white/40 leading-relaxed italic max-w-2xl mx-auto font-medium">
           "Most people don't read the terms. We think they should know what's in them."
         </p>
@@ -597,13 +597,13 @@ function About() {
         <div className="p-8 md:p-10 bg-[#0B1219] rounded-2xl border border-white/10 space-y-4 md:space-y-6">
           <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Our Mission</h2>
           <p className="text-base md:text-lg text-white/60 leading-relaxed font-medium">
-            ClauseLens was born out of a simple frustration: the sheer length and complexity of modern legal documents. Built by <span className="text-mint font-bold italic">TeamSuiaah</span>, we believe that understanding your rights shouldn't require a law degree.
+            Safroi was born out of a simple frustration: the sheer length and complexity of modern legal documents. Built by <span className="text-mint font-bold italic">TeamSuiaah</span>, we believe that understanding your rights shouldn't require a law degree.
           </p>
         </div>
         <div className="p-8 md:p-10 bg-[#0B1219] rounded-2xl border border-white/10 space-y-4 md:space-y-6">
           <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Suirify Integration</h2>
           <p className="text-base md:text-lg text-white/60 leading-relaxed font-medium">
-            Seamlessly connected with the <a href="https://testnet.suirify.com" className="text-accent-blue hover:underline decoration-accent-blue/30 underline-offset-4">Suirify Ecosystem</a>, ClauseLens acts as your personal digital guardian. We ensure your footprint remains secure while you explore the open internet.
+            Seamlessly connected with the <a href="https://testnet.suirify.com" className="text-accent-blue hover:underline decoration-accent-blue/30 underline-offset-4">Suirify Ecosystem</a>, Safroi acts as your personal digital guardian. We ensure your footprint remains secure while you explore the open internet.
           </p>
         </div>
       </div>

@@ -3,36 +3,36 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ClauseLens | Protecting your Digital FootPrint</title>
+    <title>Safroi | Protecting your Digital FootPrint</title>
     
     <!-- Primary Meta Tags -->
-    <meta name="title" content="ClauseLens | Protecting your Digital FootPrint" />
+    <meta name="title" content="Safroi | Protecting your Digital FootPrint" />
     <meta name="description" content="AI-powered legal risk analyzer that simplifies Terms of Service and Privacy Policies into clear, actionable insights to protect your digital footprint." />
-    <meta name="keywords" content="legal AI, Terms of Service analyzer, Privacy Policy analyzer, digital footprint, online privacy protection, contract risk assessment, ClauseLens, simplify ToS, digital privacy, legal tech" />
-    <meta name="author" content="ClauseLens Team" />
+    <meta name="keywords" content="legal AI, Terms of Service analyzer, Privacy Policy analyzer, digital footprint, online privacy protection, contract risk assessment, Safroi, simplify ToS, digital privacy, legal tech" />
+    <meta name="author" content="Safroi Team" />
     <meta name="robots" content="index, follow" />
-    <link rel="canonical" href="https://clauselens.suirify.com/" />
+    <link rel="canonical" href="https://safroi.suirify.com/" />
 
     <!-- Open Graph / Facebook / LinkedIn -->
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://clauselens.suirify.com/" />
-    <meta property="og:title" content="ClauseLens | Protecting your Digital Footprint with AI" />
+    <meta property="og:url" content="https://safroi.suirify.com/" />
+    <meta property="og:title" content="Safroi | Protecting your Digital Footprint with AI" />
     <meta property="og:description" content="Instantly decode complex Terms of Service and Privacy Policies. Get clear, visual legal risk scores and danger flags to understand what you're agreeing to before you click accept." />
-    <meta property="og:image" content="https://clauselens.suirify.com/Clause.png" />
+    <meta property="og:image" content="https://safroi.suirify.com/Clause.png" />
 
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image" />
-    <meta property="twitter:url" content="https://clauselens.suirify.com/" />
-    <meta property="twitter:title" content="ClauseLens | Protecting your Digital Footprint with AI" />
+    <meta property="twitter:url" content="https://safroi.suirify.com/" />
+    <meta property="twitter:title" content="Safroi | Protecting your Digital Footprint with AI" />
     <meta property="twitter:description" content="Instantly decode complex Terms of Service and Privacy Policies. Get clear, visual legal risk scores and danger flags to understand what you're agreeing to before you click accept." />
-    <meta property="twitter:image" content="https://clauselens.suirify.com/Clause.png" />
+    <meta property="twitter:image" content="https://safroi.suirify.com/Clause.png" />
 
     <!-- JSON-LD Structured Data for Search Engine Optimization -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
       "@type": "SoftwareApplication",
-      "name": "ClauseLens",
+      "name": "Safroi",
       "operatingSystem": "All",
       "applicationCategory": "SecurityApplication",
       "description": "An AI-powered legal risk analyzer that simplifies Terms of Service and Privacy Policies into clear, actionable insights to protect your digital footprint.",
@@ -54,44 +54,23 @@
     <link rel="icon" type="image/png" href="/Clause.png" />
     <link rel="apple-touch-icon" href="/Clause.png" />
     <script>
-      // Suppress benign console noise and environment-specific errors
       (function() {
         const suppressList = [
-          'WebSocket', 
-          'socket', 
-          '[vite] failed to connect', 
-          'HMR', 
-          'WebSocket closed', 
-          'monaco-editor', 
-          'web worker', 
+          'WebSocket',
+          'socket',
+          '[vite] failed to connect',
+          'HMR',
+          'WebSocket closed',
           'extension context invalidated',
-          'Writer trial',
-          'Origin trial',
-          'Slow network is detected',
           'violates the following Content Security Policy directive',
           'preloaded using link preload but not used',
-          'Please note that you are testing the GHP integration',
-          'Failed to start Logcat polling',
-          'Error while streaming response: _.iG',
-          'MakersuiteAppletControlService',
-          'StreamCodeAssistantOfflineGeneration',
           'Origin trial controlled feature not enabled',
-          'Unrecognized feature',
-          'MetaMask',
-          'Failed to connect to MetaMask',
-          'Cannot read properties of undefined',
-          'Cannot read property',
-          'addListener',
-          'emit',
-          'eternl',
-          'cardano',
-          'ethereum'
         ];
-        
+
         const shouldSuppress = (msg) => {
           if (!msg) return false;
           const str = String(msg);
-          return suppressList.some(s => str.toLowerCase().includes(s.toLowerCase()));
+          return suppressList.some(s => str.includes(s));
         };
 
         window.addEventListener('unhandledrejection', (event) => {
@@ -119,7 +98,6 @@
           return (...args) => {
             const firstArg = args[0];
             if (firstArg && shouldSuppress(firstArg)) return;
-            // Also check the entire string representation of arguments for complex logs
             if (args.some(a => shouldSuppress(a))) return;
             original.apply(console, args);
           };
@@ -127,9 +105,6 @@
 
         console.warn = wrap(console.warn);
         console.error = wrap(console.error);
-        console.info = wrap(console.info);
-        console.debug = wrap(console.debug);
-        console.log = wrap(console.log);
       })();
     </script>
   </head>

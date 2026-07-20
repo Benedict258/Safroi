@@ -31,7 +31,7 @@ export function Header({ onNavigate, activeView, user, onLogin, onLogout }: Head
           onClick={() => { onNavigate('home'); setIsMenuOpen(false); }}
         >
           <span className="text-xl md:text-2xl font-black italic uppercase tracking-tighter text-white">
-            Clause<span className="text-mint">Lens</span>
+            Safroi
           </span>
         </div>
         
@@ -41,6 +41,7 @@ export function Header({ onNavigate, activeView, user, onLogin, onLogout }: Head
             <button 
               key={item.view}
               onClick={() => onNavigate(item.view)}
+              aria-label={`Navigate to ${item.label}`}
               className={`px-6 py-2 rounded-full text-sm font-semibold transition-all ${activeView === item.view ? 'bg-white/5 text-white' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
             >
               {item.label}

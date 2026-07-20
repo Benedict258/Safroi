@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AnalysisResult, HistoryItem } from '../types';
 
-const STORAGE_KEY = 'clauselens_history';
+const STORAGE_KEY = 'safroi_history';
 
 const generateId = () => {
   try {

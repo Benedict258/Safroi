@@ -10,7 +10,7 @@ import {
   updateProfile
 } from 'firebase/auth';
 import { getFirestore, doc, setDoc, query, orderBy, onSnapshot, getDocFromServer } from 'firebase/firestore';
-import firebaseConfig from '../../firebase-applet-config.json';
+import firebaseConfig from '../../firebase-config.json';
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
@@ -32,7 +32,9 @@ export const signInWithGoogle = async () => {
   }
 };
 
-const ensureUserDoc = async (user: any) => {
+import { User } from 'firebase/auth';
+
+const ensureUserDoc = async (user: User) => {
   const userDoc = doc(db, 'users', user.uid);
   const docSnap = await getDocFromServer(userDoc).catch(() => null);
   

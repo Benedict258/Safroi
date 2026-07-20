@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "ClauseLens",
+  "name": "Safroi",
   "version": "1.1",
   "description": "Instantly analyze website terms and privacy policies with AI.",
   "permissions": ["activeTab", "scripting", "storage", "tabs"],
@@ -27,7 +27,7 @@
   "content_scripts": [
     {
       "matches": [
-        "https://clauselens.suirify.com/*",
+        "https://safroi.suirify.com/*",
         "https://ais-pre-wndzybiqm3ibh34ikg4x5u-337842956729.europe-west1.run.app/*",
         "https://ais-dev-wndzybiqm3ibh34ikg4x5u-337842956729.europe-west1.run.app/*",
         "*://*.run.app/*",

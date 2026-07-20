@@ -1,4 +1,4 @@
-import { AnalysisResult, Severity } from "../types";
+import { AnalysisResult } from "../types";
 
 const generateId = () => {
   try {
@@ -6,14 +6,6 @@ const generateId = () => {
   } catch (e) {
     return Math.random().toString(36).substring(2) + Date.now().toString(36);
   }
-};
-
-const calculateRiskScore = (risks: any[]): number => {
-  if (!risks || risks.length === 0) return 1;
-  const weights = { low: 1, medium: 3, high: 5 };
-  const total = risks.reduce((acc, r) => acc + (weights[r.severity as Severity] || 0), 0);
-  const maxPossible = risks.length * 5;
-  return Math.max(1, Math.min(10, Math.round((total / maxPossible) * 10)));
 };
 
 export async function analyzeWebsite(url: string): Promise<AnalysisResult> {
@@ -43,11 +35,7 @@ export async function analyzeContract(text: string, title?: string): Promise<Ana
     throw new Error(err.error || "Contract analysis failed");
   }
 
-  const result = await response.json();
-  return {
-    ...result,
-    risk_score: calculateRiskScore(result.risks)
-  };
+  return response.json();
 }
 
 export async function translateText(text: string, targetLanguage: string): Promise<string> {

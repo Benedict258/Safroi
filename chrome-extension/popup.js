@@ -1,5 +1,5 @@
-// ClauseLens Popup Script
-let BASE_URL = "https://clauselens.suirify.com"; // Default production
+// Safroi Popup Script
+let BASE_URL = "https://safroi.suirify.com"; // Default production
 let isConfigLoaded = false;
 let configPromise = null;
 
@@ -9,15 +9,15 @@ async function detectEnvironment() {
         const currentTab = tabs[0];
         if (currentTab && currentTab.url) {
             const url = new URL(currentTab.url);
-            // If we are currently ON a ClauseLens app domain, prioritize that origin
-            if (url.hostname.includes('run.app') || url.hostname.includes('localhost') || url.hostname === 'clauselens.suirify.com') {
-                console.log("ClauseLens: Auto-detected environment from tab:", url.origin);
+            // If we are currently ON a Safroi app domain, prioritize that origin
+            if (url.hostname.includes('run.app') || url.hostname.includes('localhost') || url.hostname === 'safroi.suirify.com') {
+                console.log("Safroi: Auto-detected environment from tab:", url.origin);
                 BASE_URL = url.origin;
                 return true; 
             }
         }
     } catch (e) {
-        console.warn("ClauseLens: Env detection failed", e);
+        console.warn("Safroi: Env detection failed", e);
     }
     return false;
 }
@@ -28,7 +28,7 @@ function loadConfig() {
         // 1. Try to get persisted URL from previous detection
         const stored = await new Promise(resolve => chrome.storage.local.get(['PERSISTED_BASE_URL'], resolve));
         if (stored.PERSISTED_BASE_URL) {
-            console.log("ClauseLens: Using persisted BASE_URL:", stored.PERSISTED_BASE_URL);
+            console.log("Safroi: Using persisted BASE_URL:", stored.PERSISTED_BASE_URL);
             BASE_URL = stored.PERSISTED_BASE_URL;
         }
 
@@ -46,17 +46,17 @@ function loadConfig() {
                 if (r.ok && contentType && contentType.includes('application/json')) {
                     const config = await r.json();
                     if (config.BASE_URL) {
-                        console.log("ClauseLens: Using BASE_URL from config.json:", config.BASE_URL);
+                        console.log("Safroi: Using BASE_URL from config.json:", config.BASE_URL);
                         BASE_URL = config.BASE_URL;
                     }
                 }
             } catch (e) {
-                console.warn("ClauseLens: Config loading skipped or failed", e);
+                console.warn("Safroi: Config loading skipped or failed", e);
             }
         }
         
         isConfigLoaded = true;
-        console.log("ClauseLens: Final BASE_URL for this session:", BASE_URL);
+        console.log("Safroi: Final BASE_URL for this session:", BASE_URL);
         return { BASE_URL };
     })();
     return configPromise;
@@ -118,7 +118,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (currentAuthMode === 'login') {
             currentAuthMode = 'signup';
             authTitle.textContent = 'CREATE ACCOUNT';
-            authSubtitle.textContent = 'Join ClauseLens to start identifying digital risks.';
+            authSubtitle.textContent = 'Join Safroi to start identifying digital risks.';
             authSubmitBtn.textContent = 'Sign Up';
             toggleAuthModeBtn.textContent = 'Back to Sign In';
             authNameInput.style.display = 'block';
@@ -214,11 +214,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         btn.disabled = true;
 
         try {
-            // Find any tab with ClauseLens and ask it to sync
+            // Find any tab with Safroi and ask it to sync
             const tabs = await chrome.tabs.query({});
             let foundApp = false;
             for (const tab of tabs) {
-                if (tab.url && (tab.url.includes('europe-west1.run.app') || tab.url.includes('localhost') || tab.url.includes('clauselens.suirify.com'))) {
+                if (tab.url && (tab.url.includes('europe-west1.run.app') || tab.url.includes('localhost') || tab.url.includes('safroi.suirify.com'))) {
                     foundApp = true;
                     try {
                         await chrome.scripting.executeScript({
@@ -238,7 +238,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             
             if (!foundApp) {
-                alert("Please open the ClauseLens web app first, sign in, and then click refresh.");
+                alert("Please open the Safroi web app first, sign in, and then click refresh.");
             } else {
                 // Persistent the newly detected URL
                 await loadConfig();
@@ -338,7 +338,6 @@ function showLogin() {
 
 async function smartFetch(url, options = {}) {
     const contentType = options.headers?.['Content-Type'] || 'application/json';
-    // Ensure credentials: 'include' is set to carry AI Studio platform cookies
     const fetchOptions = {
         ...options,
         credentials: 'include'
