@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,700;0,800;1,900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #050B10;
+      --card: #0B1219;
+      --mint: #E0FEF6;
+      --border: rgba(255, 255, 255, 0.1);
+      --text: #ffffff;
+      --muted: rgba(255, 255, 255, 0.4);
+    }
+    body {
+      width: 350px;
+      padding: 16px;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .logo {
+      width: 28px;
+      height: 28px;
+      border-radius: 100%;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--card); /* Fallback */
+    }
+    .logo img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .title {
+      font-size: 20px;
+      font-weight: 900;
+      font-style: italic;
+      text-transform: uppercase;
+      flex: 1;
+      letter-spacing: -0.05em;
+    }
+    .highlight { color: #E0FEF6; } /* Mint from website */
+    
+    .large-branding {
+      font-size: 32px;
+      font-weight: 900;
+      font-style: italic;
+      text-transform: uppercase;
+      letter-spacing: -0.06em;
+      margin-bottom: 24px;
+    }
+    .large-branding .highlight { color: #E0FEF6; }
+    
+    /* Loading State */
+    #loading {
+      text-align: center;
+      padding: 30px 0;
+    }
+    .spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid var(--border);
+      border-top: 3px solid var(--mint);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Login View */
+    #loginBtn {
+      cursor: pointer;
+      border: none;
+      background: #ffffff;
+      color: #000000;
+      font-weight: 800;
+      padding: 12px;
+      border-radius: 12px;
+      width: 100%;
+      transition: opacity 0.2s;
+    }
+    #loginBtn:hover { opacity: 0.9; }
+
+    /* Results UI */
+    .result-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .score-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .score-container {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .score {
+      font-size: 24px;
+      font-weight: 900;
+      letter-spacing: -0.05em;
+      padding: 4px 12px;
+      border-radius: 100px;
+    }
+    .severity {
+      font-size: 10px;
+      text-transform: uppercase;
+      font-weight: 900;
+      padding: 4px 10px;
+      border-radius: 6px;
+      letter-spacing: 0.1em;
+    }
+    .severity.high { background: rgba(239, 68, 68, 0.1); color: #EF4444; }
+    .severity.medium { background: rgba(245, 158, 11, 0.1); color: #F59E0B; }
+    .severity.low { background: rgba(34, 197, 94, 0.1); color: #22C55E; }
+
+    .score { color: #ffffff; } /* Default */
+    .score.low { color: #22C55E; background: rgba(34, 197, 94, 0.1); }
+    .score.medium { color: #F59E0B; background: rgba(245, 158, 11, 0.1); }
+    .score.high { color: #EF4444; background: rgba(239, 68, 68, 0.1); }
+
+    .summary {
+      font-size: 14px;
+      color: rgba(255,255,255,0.7);
+      line-height: 1.5;
+      margin-bottom: 20px;
+    }
+
+    .risk-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .risk-item {
+      padding: 12px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      transition: transform 0.2s;
+    }
+    .risk-item:hover { transform: scale(1.02); }
+    
+    .risk-item.low {
+      background: linear-gradient(135deg, rgba(34, 197, 94, 0.08) 0%, rgba(11, 18, 25, 1) 100%);
+      border-color: rgba(34, 197, 94, 0.2);
+    }
+    .risk-item.low .risk-title { color: #22C55E; }
+    
+    .risk-item.medium {
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(11, 18, 25, 1) 100%);
+      border-color: rgba(245, 158, 11, 0.2);
+    }
+    .risk-item.medium .risk-title { color: #F59E0B; }
+    
+    .risk-item.high {
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(11, 18, 25, 1) 100%);
+      border-color: rgba(239, 68, 68, 0.2);
+    }
+    .risk-item.high .risk-title { color: #EF4444; }
+
+    .risk-title { font-weight: 700; font-size: 13px; margin-bottom: 4px; }
+    .risk-desc { font-size: 11px; color: var(--muted); line-height: 1.4; }
+
+    .btn {
+      width: 100%;
+      background: var(--mint);
+      color: var(--bg);
+      border: none;
+      padding: 12px;
+      border-radius: 12px;
+      font-weight: 800;
+      cursor: pointer;
+      font-size: 13px;
+      transition: transform 0.2s;
+    }
+    .btn:hover { transform: scale(1.02); }
+    .btn-secondary {
+      background: transparent;
+      color: white;
+      border: 1px solid var(--border);
+      margin-top: 12px;
+    }
+
+    /* Toggle Switch */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 24px;
+    }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: var(--border);
+      transition: .4s;
+      border-radius: 34px;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+    }
+    input:checked + .slider { background-color: #22C55E; }
+    input:checked + .slider:before { transform: translateX(20px); }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="title">Safroi</div>
+    <label class="switch">
+      <input type="checkbox" id="scan-toggle" checked>
+      <span class="slider round"></span>
+    </label>
+  </div>
+
+  <div id="intro-view" style="display: none; text-align: center; padding: 20px 0;">
+    <p style="font-size: 14px; color: var(--muted); margin-bottom: 20px;">Real-time policy protection is <strong>OFF</strong>. Turn it on to scan site risks.</p>
+    <div class="large-branding" style="opacity: 0.2;">
+       Safroi
+    </div>
+  </div>
+
+  <div id="login-view" style="display: none; text-align: center; padding: 30px 20px;">
+    <div class="large-branding" style="box-shadow: 0 10px 40px rgba(224, 254, 246, 0.05); display: inline-block; padding: 10px 20px; border-radius: 20px; background: rgba(224, 254, 246, 0.02); border: 1px solid rgba(224, 254, 246, 0.05); margin-bottom: 24px;">
+      Safroi
+    </div>
+    
+    <div id="auth-form-container">
+      <h2 id="auth-title" style="font-size: 18px; font-weight: 900; margin-bottom: 8px; color: white; text-transform: uppercase;">SIGN IN</h2>
+      <p id="auth-subtitle" style="font-size: 11px; color: var(--muted); margin-bottom: 20px; line-height: 1.4;">Access your history and real-time scans.</p>
+      
+      <div id="auth-error" style="display: none; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); color: #EF4444; padding: 10px; border-radius: 10px; font-size: 11px; font-weight: 700; margin-bottom: 16px; text-align: left;"></div>
+      <div id="auth-success" style="display: none; background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.2); color: #22C55E; padding: 10px; border-radius: 10px; font-size: 11px; font-weight: 700; margin-bottom: 16px; text-align: left;"></div>
+
+      <form id="auth-form" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;">
+        <input type="text" id="auth-name" placeholder="Full Name" style="display: none; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 10px; padding: 12px; color: white; font-size: 13px; outline: none; transition: border-color 0.2s;">
+        <input type="email" id="auth-email" placeholder="Email Address" required style="background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 10px; padding: 12px; color: white; font-size: 13px; outline: none; transition: border-color 0.2s;">
+        <input type="password" id="auth-password" placeholder="Password" style="background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 10px; padding: 12px; color: white; font-size: 13px; outline: none; transition: border-color 0.2s;">
+        
+        <button type="submit" id="auth-submit-btn" class="btn" style="padding: 14px;">Sign In</button>
+      </form>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding: 0 4px;">
+        <button id="toggle-auth-mode" style="background: none; border: none; color: var(--mint); font-size: 11px; font-weight: 700; cursor: pointer; padding: 0;">Create Account</button>
+        <button id="forgot-password-btn" style="background: none; border: none; color: var(--muted); font-size: 11px; font-weight: 700; cursor: pointer; padding: 0;">Forgot Password?</button>
+      </div>
+    </div>
+
+    <button id="refreshAuthBtn" style="width: 100%; background: transparent; border: none; color: var(--muted); padding: 12px; font-size: 10px; font-weight: 700; cursor: pointer; transition: all 0.2s; margin-top: 20px; text-decoration: underline; opacity: 0.5;">
+      Already signed in on web? Refresh
+    </button>
+  </div>
+
+  <div id="loading">
+    <div class="spinner"></div>
+    <p style="font-size: 14px; font-weight: 600;">Analyzing site policies...</p>
+    <p id="loading-sub" style="font-size: 11px; color: var(--muted); margin-top: 4px;">Identifying ToS & Privacy pages</p>
+  </div>
+
+  <div id="error" style="display: none; text-align: center; padding: 20px;">
+    <p id="errorText" style="color: #EF4444; font-size: 14px;">Analysis failed. Try again?</p>
+    <button id="retryBtn" class="btn" style="margin-top: 10px;">Retry</button>
+  </div>
+
+  <div id="results" style="display: none;">
+    <div class="site-header" style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border);">
+      <div id="siteIconContainer" style="width: 32px; height: 32px; border-radius: 8px; background: var(--card); border: 1px solid var(--border); overflow: hidden; display: flex; align-items: center; justify-content: center; font-weight: 900; color: var(--mint); font-size: 16px;">
+        <img id="siteIcon" src="" style="width: 24px; height: 24px; object-fit: contain; display: none;">
+        <span id="siteLetter"></span>
+      </div>
+      <div style="flex: 1; overflow: hidden;">
+        <div id="siteName" style="font-weight: 800; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Loading...</div>
+        <div id="siteDomain" style="font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">domain.com</div>
+      </div>
+    </div>
+
+    <div class="result-card">
+      <div class="score-row">
+        <div class="score-container">
+          <span class="score" id="scoreValue">0/10</span>
+          <span style="color: var(--muted); font-size: 11px; font-weight: bold; letter-spacing: 0.05em;">AI RISK SCORE</span>
+        </div>
+        <span class="severity" id="severityText">Scanning</span>
+      </div>
+      <div class="summary" id="summaryText"></div>
+      <div class="risk-list" id="riskList"></div>
+    </div>
+    
+    <button id="reanalyzeBtn" class="btn">Re-analyze Page</button>
+    <button id="dashboardBtn" class="btn btn-secondary">Open Dashboard</button>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

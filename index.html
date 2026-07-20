@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Safroi | Protecting your Digital FootPrint</title>
+    
+    <!-- Primary Meta Tags -->
+    <meta name="title" content="Safroi | Protecting your Digital FootPrint" />
+    <meta name="description" content="AI-powered legal risk analyzer that simplifies Terms of Service and Privacy Policies into clear, actionable insights to protect your digital footprint." />
+    <meta name="keywords" content="legal AI, Terms of Service analyzer, Privacy Policy analyzer, digital footprint, online privacy protection, contract risk assessment, Safroi, simplify ToS, digital privacy, legal tech" />
+    <meta name="author" content="Safroi Team" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://safroi.suirify.com/" />
+
+    <!-- Open Graph / Facebook / LinkedIn -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://safroi.suirify.com/" />
+    <meta property="og:title" content="Safroi | Protecting your Digital Footprint with AI" />
+    <meta property="og:description" content="Instantly decode complex Terms of Service and Privacy Policies. Get clear, visual legal risk scores and danger flags to understand what you're agreeing to before you click accept." />
+    <meta property="og:image" content="https://safroi.suirify.com/Clause.png" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://safroi.suirify.com/" />
+    <meta property="twitter:title" content="Safroi | Protecting your Digital Footprint with AI" />
+    <meta property="twitter:description" content="Instantly decode complex Terms of Service and Privacy Policies. Get clear, visual legal risk scores and danger flags to understand what you're agreeing to before you click accept." />
+    <meta property="twitter:image" content="https://safroi.suirify.com/Clause.png" />
+
+    <!-- JSON-LD Structured Data for Search Engine Optimization -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "Safroi",
+      "operatingSystem": "All",
+      "applicationCategory": "SecurityApplication",
+      "description": "An AI-powered legal risk analyzer that simplifies Terms of Service and Privacy Policies into clear, actionable insights to protect your digital footprint.",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "featureList": [
+        "AI-Powered Legal Risk Scanning",
+        "Interactive Contract Q&A Chatbot",
+        "Terms of Service & Privacy Policy Summarization",
+        "Risk Scoring and Highlighted Danger Flags",
+        "Chrome Extension Integration"
+      ]
+    }
+    </script>
+
+    <link rel="icon" type="image/png" href="/Clause.png" />
+    <link rel="apple-touch-icon" href="/Clause.png" />
+    <script>
+      (function() {
+        const suppressList = [
+          'WebSocket',
+          'socket',
+          '[vite] failed to connect',
+          'HMR',
+          'WebSocket closed',
+          'extension context invalidated',
+          'violates the following Content Security Policy directive',
+          'preloaded using link preload but not used',
+          'Origin trial controlled feature not enabled',
+        ];
+
+        const shouldSuppress = (msg) => {
+          if (!msg) return false;
+          const str = String(msg);
+          return suppressList.some(s => str.includes(s));
+        };
+
+        window.addEventListener('unhandledrejection', (event) => {
+          const reason = event.reason;
+          const msg = reason?.message || (reason ? String(reason) : '') || '';
+          const stack = reason?.stack || '';
+          if (shouldSuppress(msg) || shouldSuppress(stack)) {
+            event.preventDefault();
+            event.stopPropagation();
+          }
+        }, true);
+
+        window.addEventListener('error', (event) => {
+          const msg = event.message || '';
+          const errorMsg = event.error?.message || (event.error ? String(event.error) : '') || '';
+          const errorStack = event.error?.stack || '';
+          if (shouldSuppress(msg) || shouldSuppress(errorMsg) || shouldSuppress(errorStack)) {
+            event.preventDefault();
+            event.stopPropagation();
+          }
+        }, true);
+
+        const wrap = (original) => {
+          if (!original) return original;
+          return (...args) => {
+            const firstArg = args[0];
+            if (firstArg && shouldSuppress(firstArg)) return;
+            if (args.some(a => shouldSuppress(a))) return;
+            original.apply(console, args);
+          };
+        };
+
+        console.warn = wrap(console.warn);
+        console.error = wrap(console.error);
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

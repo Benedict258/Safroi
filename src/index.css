@@ -1,0 +1,52 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-risk-low: #22c55e;
+  --color-risk-medium: #f59e0b;
+  --color-risk-high: #ef4444;
+  
+  --color-mint: #E0FEF6;
+  --color-accent-blue: #38BDF8;
+}
+
+@layer base {
+  html {
+    @apply scroll-smooth;
+  }
+  body {
+    @apply bg-[#050B10] text-white font-sans antialiased selection:bg-accent-blue/30;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+.bg-grid-pattern {
+  background-image: 
+    linear-gradient(rgba(56, 189, 248, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56, 189, 248, 0.05) 1px, transparent 1px);
+  background-size: 50px 50px;
+}
+
+.risk-gradient-low {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.1) 0%, rgba(5, 11, 16, 1) 100%);
+}
+
+.risk-gradient-medium {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(5, 11, 16, 1) 100%);
+}
+
+.risk-gradient-high {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(5, 11, 16, 1) 100%);
+}
