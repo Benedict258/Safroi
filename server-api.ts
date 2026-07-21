@@ -382,7 +382,9 @@ async function startServer() {
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Safroi API running on port ${PORT}`);
-    connectDB();
+    connectDB().then(ok => {
+      if (!ok) console.warn('[MongoDB] Running without database — history API disabled.');
+    });
   });
 }
 
