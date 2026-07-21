@@ -7,8 +7,8 @@ import OpenAI from "openai";
 import AdmZip from "adm-zip";
 import fs from "fs";
 import cors from "cors";
-import { query, testConnection } from "./src/db/index";
-import { runMigrations } from "./src/db/migrate";
+import { connectDB } from "./src/db/index";
+import { User, Analysis } from "./src/db/models";
 import { initializeApp } from "firebase/app";
 import { 
   getAuth, 
@@ -613,26 +613,27 @@ async function startServer() {
     try {
       const { userId, analysis } = req.body;
       if (!userId || !analysis) return res.status(400).json({ error: "userId and analysis required" });
-
-      await query(
-        `INSERT INTO analyses (id, user_id, type, title, url, summary, risk_score, risks, key_points, original_text)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-         ON CONFLICT (id) DO NOTHING`,
-        [
-          analysis.id, userId, analysis.type, analysis.title, analysis.url || null,
-          analysis.summary, analysis.risk_score, JSON.stringify(analysis.risks || []),
-          analysis.key_points ? JSON.stringify(analysis.key_points) : null,
-          analysis.original_text || null,
-        ]
+      await Analysis.findOneAndUpdate(
+        { _id: analysis.id } as any,
+        {
+          _id: analysis.id,
+          userId,
+          type: analysis.type,
+          title: analysis.title,
+          url: analysis.url,
+          summary: analysis.summary,
+          risk_score: analysis.risk_score,
+          risks: analysis.risks || [],
+          key_points: analysis.key_points,
+          original_text: analysis.original_text,
+        },
+        { upsert: true, new: true }
       );
-
-      await query(
-        `INSERT INTO users (id, email, display_name, photo_url)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (id) DO UPDATE SET updated_at = NOW()`,
-        [userId, userId, userId, null]
+      await User.findOneAndUpdate(
+        { _id: userId } as any,
+        { _id: userId, email: userId, displayName: userId },
+        { upsert: true, returnDocument: 'after' }
       );
-
       res.json({ saved: true });
     } catch (err) {
       console.error("History save error:", err);
@@ -642,14 +643,11 @@ async function startServer() {
 
   app.get("/api/history/:userId", async (req, res) => {
     try {
-      const { userId } = req.params;
-      const result = await query(
-        `SELECT id, type, title, url, risk_score, created_at
-         FROM analyses WHERE user_id = $1
-         ORDER BY created_at DESC LIMIT 50`,
-        [userId]
-      );
-      res.json(result.rows);
+      const items = await Analysis.find({ userId: req.params.userId } as any)
+        .select('_id type title url risk_score created_at')
+        .sort({ created_at: -1 })
+        .limit(50);
+      res.json(items);
     } catch (err) {
       console.error("History fetch error:", err);
       res.status(500).json({ error: "Failed to fetch history" });
@@ -658,13 +656,9 @@ async function startServer() {
 
   app.get("/api/history/:userId/:id", async (req, res) => {
     try {
-      const { userId, id } = req.params;
-      const result = await query(
-        `SELECT * FROM analyses WHERE id = $1 AND user_id = $2`,
-        [id, userId]
-      );
-      if (result.rows.length === 0) return res.status(404).json({ error: "Not found" });
-      res.json(result.rows[0]);
+      const item = await Analysis.findOne({ _id: req.params.id, userId: req.params.userId } as any);
+      if (!item) return res.status(404).json({ error: "Not found" });
+      res.json(item);
     } catch (err) {
       console.error("History detail error:", err);
       res.status(500).json({ error: "Failed to fetch analysis" });
@@ -673,8 +667,7 @@ async function startServer() {
 
   app.delete("/api/history/:userId/:id", async (req, res) => {
     try {
-      const { userId, id } = req.params;
-      await query(`DELETE FROM analyses WHERE id = $1 AND user_id = $2`, [id, userId]);
+      await Analysis.deleteOne({ _id: req.params.id, userId: req.params.userId } as any);
       res.json({ deleted: true });
     } catch (err) {
       console.error("History delete error:", err);
@@ -709,7 +702,7 @@ async function startServer() {
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
-    runMigrations();
+    connectDB();
   });
 }
 
