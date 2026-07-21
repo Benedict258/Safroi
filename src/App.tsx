@@ -7,17 +7,16 @@ import { Legal } from './components/Legal';
 import { analyzeWebsite, analyzeContract } from './services/groq';
 import { AnalysisResult } from './types';
 import { useHistory } from './hooks/useHistory';
-import { Shield, Lock, Zap, MousePointer2, LogIn, User as UserIcon, X } from 'lucide-react';
+import { Shield, Lock, Zap, MousePointer2, LogIn, User as UserIcon, X, Mail, Key, ArrowLeft, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { cn } from './lib/utils';
-import { auth, signInWithGoogle, logout, loginWithEmail, registerWithEmail, resetPassword } from './lib/firebase';
-import { onAuthStateChanged, User } from 'firebase/auth';
-import { Mail, Key, ArrowLeft, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { login, signup, requestReset, logout, getStoredUser, getMe } from './services/auth';
+import type { AuthUser } from './services/auth';
 
 export default function App() {
   const [activeView, setActiveView] = useState<'home' | 'dashboard' | 'history' | 'about' | 'legal'>('home');
   const [currentResult, setCurrentResult] = useState<AnalysisResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(getStoredUser);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup' | 'reset'>('login');
@@ -31,36 +30,18 @@ export default function App() {
 
   React.useEffect(() => {
     document.title = "Safroi | Protecting your Digital FootPrint";
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
+    getMe().then(u => {
+      if (u) setUser(u);
       setIsAuthLoading(false);
-      if (user) {
-        setShowAuthModal(false);
-        localStorage.setItem('safroi_auth_status', JSON.stringify({
-          uid: user.uid,
-          email: user.email,
-          displayName: user.displayName,
-          loggedIn: true
-        }));
-      } else {
-        localStorage.removeItem('safroi_auth_status');
-      }
     });
-
     const params = new URLSearchParams(window.location.search);
     const urlParam = params.get('url');
     if (urlParam) {
-      if (user) {
-        handleAnalyze({ type: 'website', value: urlParam });
-        setActiveView('dashboard');
-      } else {
-        setShowAuthModal(true);
-      }
+      setActiveView('dashboard');
       window.history.replaceState({}, document.title, window.location.pathname);
     }
-
-    return () => unsubscribe();
-  }, [user]);
+    return () => {};
+  }, []);
 
   const handleAnalyze = async (data: { type: 'website' | 'contract', value: string, fileName?: string }) => {
     if (!user) {
@@ -153,23 +134,17 @@ export default function App() {
                 setIsSubmitting(true);
                 try {
                   if (authMode === 'login') {
-                    await loginWithEmail(authEmail, authPassword);
+                    const u = await login(authEmail, authPassword);
+                    setUser(u);
                     setShowAuthModal(false);
                   } else if (authMode === 'signup') {
                     if (!authName) throw new Error("Name is required");
-                    await registerWithEmail(authEmail, authPassword, authName);
+                    const u = await signup(authEmail, authPassword, authName);
+                    setUser(u);
                     setShowAuthModal(false);
                   } else {
-                    // Call server-side reset for professional template messaging
-                    const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/auth/reset`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ email: authEmail })
-                    });
-                    const data = await response.json();
-                    if (!response.ok) throw new Error(data.error || "Reset failed");
-                    
-                    setAuthSuccess("A professional reset link has been dispatched to your inbox. Please check your email to proceed.");
+                    await requestReset(authEmail);
+                    setAuthSuccess("A reset link has been dispatched to your inbox.");
                     setTimeout(() => setAuthMode('login'), 5000);
                   }
                 } catch (err: unknown) {
@@ -253,20 +228,6 @@ export default function App() {
                   )}
                 </button>
               </form>
-
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/5"></div></div>
-                <div className="relative flex justify-center text-[10px] uppercase font-black tracking-widest"><span className="bg-[#0B1219] px-4 text-white/20 italic">Or continue with</span></div>
-              </div>
-
-              <button 
-                onClick={() => signInWithGoogle()}
-                disabled={isSubmitting}
-                className="w-full flex items-center justify-center gap-3 rounded-xl bg-white/5 border border-white/10 px-8 py-4 text-sm font-black text-white transition-all hover:bg-white/10 active:scale-95 disabled:opacity-50"
-              >
-                <img src="https://www.google.com/favicon.ico" alt="Google" className="w-5 h-5 opacity-80" />
-                Google Account
-              </button>
 
               <div className="text-center pt-2">
                 {authMode === 'login' ? (
@@ -398,7 +359,7 @@ export default function App() {
   );
 }
 
-function LandingPage({ onStart, user, onLogin }: { onStart: () => void, user: User | null, onLogin: () => void }) {
+function LandingPage({ onStart, user, onLogin }: { onStart: () => void, user: AuthUser | null, onLogin: () => void }) {
   return (
     <div className="space-y-32">
       {/* Hero Section */}

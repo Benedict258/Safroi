@@ -94,7 +94,7 @@ export function Legal({ onBack }: LegalProps) {
                 <p>Your analysis history is stored in a secure Firestore database. You can request deletion of your account and associated history at any time by contacting our support team.</p>
 
                 <h3 className="text-white font-black uppercase text-sm tracking-wider mt-8">3. Cookies & Security</h3>
-                <p>We use standard Firebase authentication cookies to maintain your session. We do not use third-party tracking pixels or sell your data to advertisers.</p>
+                <p>We use secure session tokens to maintain your session. We do not use third-party tracking pixels or sell your data to advertisers.</p>
 
                 <h3 className="text-white font-black uppercase text-sm tracking-wider mt-8">4. Third-Party Intelligence</h3>
                 <p>We utilize standardized AI models (Groq Llama-3 / Gemini) to process policy text. These providers do not use your personal identity data for training purposes through our integration.</p>
