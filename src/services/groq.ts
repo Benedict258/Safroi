@@ -1,15 +1,9 @@
 import { AnalysisResult } from "../types";
 
-const generateId = () => {
-  try {
-    return crypto.randomUUID();
-  } catch (e) {
-    return Math.random().toString(36).substring(2) + Date.now().toString(36);
-  }
-};
+const BASE_URL = import.meta.env.VITE_API_URL || "";
 
 export async function analyzeWebsite(url: string): Promise<AnalysisResult> {
-  const response = await fetch("/api/analyze", {
+  const response = await fetch(`${BASE_URL}/api/analyze`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ type: "website", value: url })
@@ -24,7 +18,7 @@ export async function analyzeWebsite(url: string): Promise<AnalysisResult> {
 }
 
 export async function analyzeContract(text: string, title?: string): Promise<AnalysisResult> {
-  const response = await fetch("/api/analyze", {
+  const response = await fetch(`${BASE_URL}/api/analyze`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ type: "contract", value: text, title })
@@ -39,7 +33,7 @@ export async function analyzeContract(text: string, title?: string): Promise<Ana
 }
 
 export async function translateText(text: string, targetLanguage: string): Promise<string> {
-  const response = await fetch("/api/translate", {
+  const response = await fetch(`${BASE_URL}/api/translate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ text, targetLanguage })

@@ -161,7 +161,7 @@ export default function App() {
                     setShowAuthModal(false);
                   } else {
                     // Call server-side reset for professional template messaging
-                    const response = await fetch('/api/auth/reset', {
+                    const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/auth/reset`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ email: authEmail })
