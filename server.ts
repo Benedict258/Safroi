@@ -409,7 +409,7 @@ async function startServer() {
       if (!value) return res.status(400).json({ error: "Value is required" });
 
       const ai = getAI();
-      const model = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+      const model = process.env.GROQ_MODEL || "gpt-oss-120b";
       
       if (type === 'website') {
         const fetchRest = await fetchWebsiteContent(value);
@@ -588,7 +588,7 @@ async function startServer() {
       if (!text || !targetLanguage) return res.status(400).json({ error: "Text and targetLanguage are required" });
 
       const ai = getAI();
-      const model = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+      const model = process.env.GROQ_MODEL || "gpt-oss-120b";
       
       const prompt = `Translate the following text into ${targetLanguage}. 
       Keep it simple and natural for everyday understanding. Return ONLY the translated text.
