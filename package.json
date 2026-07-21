@@ -11,7 +11,7 @@
     "dev": "tsx server.ts",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "build:vercel": "vite build",
-    "build:api": "esbuild server-api.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server-api.cjs",
+    "build:api": "npm install --production=false && esbuild server-api.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server-api.cjs",
     "start": "node dist/server.cjs",
     "start:api": "node dist/server-api.cjs",
     "clean": "rm -rf dist",
