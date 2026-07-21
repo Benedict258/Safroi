@@ -260,7 +260,7 @@ async function startServer() {
     try {
       const { userId, analysis } = req.body;
       if (!userId || !analysis) return res.status(400).json({ error: "userId and analysis required." });
-      (await Analysis.findOneAndUpdate({ _id: analysis.id } as any, {  _id: analysis.id, userId, type: analysis.type, title: analysis.title, url: analysis.url, summary: analysis.summary, risk_score: analysis.risk_score, risks: analysis.risks || [], key_points: analysis.key_points, original_text: analysis.original_text }, { upsert: true, new: true, returnDocument: 'after' }) as any);
+      (await Analysis.findOneAndUpdate({ _id: analysis.id } as any, {  _id: analysis.id, userId, type: analysis.type, title: analysis.title, url: analysis.url, summary: analysis.summary, risk_score: analysis.risk_score, risks: analysis.risks || [], key_points: analysis.key_points, original_text: analysis.original_text }, { upsert: true , returnDocument: 'after' }) as any);
       (await User.findOneAndUpdate({ _id: userId } as any, { $setOnInsert: { _id: userId, email: userId, displayName: userId, password: '' } }, { upsert: true, returnDocument: 'after' }) as any);
       res.json({ saved: true });
     } catch { res.status(500).json({ error: "Save failed." }); }
