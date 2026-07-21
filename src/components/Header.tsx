@@ -31,7 +31,7 @@ export function Header({ onNavigate, activeView, user, onLogin, onLogout }: Head
           onClick={() => { onNavigate('home'); setIsMenuOpen(false); }}
         >
           <span className="text-xl md:text-2xl font-black italic uppercase tracking-tighter text-white">
-            Safroi
+            Saf<span className="text-mint">r</span><span className="text-accent-blue">o</span><span className="text-mint">i</span>
           </span>
         </div>
         
