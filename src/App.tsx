@@ -360,7 +360,7 @@ export default function App() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row justify-between items-center gap-8 mb-12">
             <div className="space-y-4 text-center md:text-left">
-              <div className="text-2xl font-black italic uppercase">Safroi</div>
+              <div className="text-2xl font-black italic uppercase">Saf<span className="text-mint">r</span><span className="text-accent-blue">o</span><span className="text-mint">i</span></div>
               <p className="text-white/40 max-w-xs font-medium">Built by <span className="text-white">TeamSuiaah</span> to keep you safe online.</p>
             </div>
             <div className="flex flex-wrap gap-x-12 gap-y-8 justify-center md:justify-end">
@@ -587,7 +587,7 @@ function About() {
   return (
     <div className="max-w-4xl mx-auto space-y-12 md:space-y-20 py-10 px-4">
       <div className="space-y-6 md:space-y-8 text-center">
-        <h1 className="text-4xl md:text-6xl font-black tracking-tight italic uppercase leading-none">About <br /> Safroi</h1>
+        <h1 className="text-4xl md:text-6xl font-black tracking-tight italic uppercase leading-none">About <br /> Saf<span className="text-mint">r</span><span className="text-accent-blue">o</span><span className="text-mint">i</span></h1>
         <p className="text-xl md:text-2xl text-white/40 leading-relaxed italic max-w-2xl mx-auto font-medium">
           "Most people don't read the terms. We think they should know what's in them."
         </p>
