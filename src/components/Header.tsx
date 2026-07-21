@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { Info, Menu, LogIn, LogOut, User as UserIcon, X } from 'lucide-react';
-import { User } from 'firebase/auth';
+import type { AuthUser } from '../services/auth';
 
 interface HeaderProps {
   onNavigate: (view: 'home' | 'dashboard' | 'history' | 'about') => void;
   activeView: string;
-  user: User | null;
+  user: AuthUser | null;
   onLogin: () => void;
   onLogout: () => void;
 }
@@ -63,13 +63,9 @@ export function Header({ onNavigate, activeView, user, onLogin, onLogout }: Head
                 <span className="text-[10px] md:text-xs font-bold text-white leading-none truncate max-w-[100px]">{user.displayName}</span>
                 <button onClick={onLogout} className="text-[9px] md:text-[10px] font-black text-white/40 uppercase hover:text-red-400 transition-colors tracking-widest">Logout</button>
               </div>
-              {user.photoURL ? (
-                <img src={user.photoURL} alt="Profile" className="h-8 w-8 md:h-10 md:w-10 rounded-lg border border-white/10" />
-              ) : (
                 <div className="h-8 w-8 md:h-10 md:w-10 rounded-lg bg-mint/20 flex items-center justify-center border border-white/10">
                   <UserIcon className="h-4 w-4 md:h-5 md:w-5 text-mint" />
                 </div>
-              )}
             </div>
           ) : (
             <button 
