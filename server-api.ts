@@ -245,7 +245,7 @@ async function startServer() {
       if (url && !value) { value = url; type = 'website'; }
       if (!value) return res.status(400).json({ error: "Value is required" });
       const ai = getAI();
-      const model = process.env.GROQ_MODEL || "gpt-oss-120b";
+      const model = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
       if (type === 'website') {
         const fetchRest = await fetchWebsiteContent(value);
         const content = fetchRest?.content;
@@ -309,7 +309,7 @@ async function startServer() {
       const { text, targetLanguage } = req.body;
       if (!text || !targetLanguage) return res.status(400).json({ error: "Text and targetLanguage are required" });
       const ai = getAI();
-      const model = process.env.GROQ_MODEL || "gpt-oss-120b";
+      const model = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
       const chatCompletion = await ai.chat.completions.create({
         messages: [{ role: "user", content: `Translate the following text into ${targetLanguage}. Keep it simple and natural for everyday understanding. Return ONLY the translated text. TEXT: ${text}` }],
         model
