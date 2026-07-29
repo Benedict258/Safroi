@@ -5,13 +5,13 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
-import OpenAI from "openai";
 import AdmZip from "adm-zip";
 import fs from "fs";
 import cors from "cors";
 import { connectDB } from "./src/db/index";
 import { User, Analysis } from "./src/db/models";
 import { ocrImage, highlightImage } from "./src/ocr/index";
+import { analyzeText, analyzeImage, translateText } from "./src/services/ai";
 
 const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
 
@@ -26,45 +26,23 @@ interface SearchResultItem {
   snippet: string;
 }
 
-interface ToolCall {
-  id: string;
-  function: {
-    name: string;
-    arguments: string;
-  };
+function extractJSON(text: string): string {
+  const match = text.match(/\{[\s\S]*\}/);
+  return match ? match[0] : text;
 }
 
 
 // Path resolution is handled via process.cwd() for bundled compatibility
 
-// Initialize Groq on the backend
-let groq: OpenAI | null = null;
-function getAI() {
-  if (!groq) {
-    const apiKey = process.env.GROQ_API_KEY;
-    if (!apiKey) {
-      console.error("CRITICAL: GROQ_API_KEY is not defined in process.env");
-      throw new Error("GROQ_API_KEY is missing. Set it in your .env file or environment variables.");
-    }
-    
-    groq = new OpenAI({
-      apiKey,
-      baseURL: "https://api.groq.com/openai/v1"
-    });
-  }
-  return groq;
-}
-
+// Gemini/Gemma AI — auto-detects GEMINI_API_KEY or GOOGLE_API_KEY
 function validateEnv() {
-  const required = ['GROQ_API_KEY'];
-  const missing = required.filter(k => !process.env[k]);
-  if (missing.length > 0) {
-    console.warn(`WARNING: Missing environment variables: ${missing.join(', ')}.`);
-    console.warn('AI analysis features will fail until these are configured.');
-    console.warn('Set them in .env or your deployment secrets panel.');
+  const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  if (!key) {
+    console.warn('WARNING: GEMINI_API_KEY or GOOGLE_API_KEY not set.');
+    console.warn('AI features will fail. Get a key at https://aistudio.google.com/apikey');
     return false;
   }
-  console.log('Environment validated successfully.');
+  console.log('Gemini API key found.');
   return true;
 }
 
@@ -218,7 +196,7 @@ async function startServer() {
       status: "ok", 
       service: "Safroi API",
       env: {
-        hasGroqKey: !!process.env.GROQ_API_KEY,
+        hasGeminiKey: !!(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY),
         hasSerperKey: !!process.env.SERPER_API_KEY,
         nodeEnv: process.env.NODE_ENV
       }
@@ -302,199 +280,42 @@ async function startServer() {
     }
   });
 
-  // Proxy endpoint for AI Analysis
+  // Gemma 4 AI Analysis
   app.post("/api/analyze", async (req, res) => {
     try {
       let { type, value, title, url } = req.body;
-      
-      // Backward compatibility for Chrome Extension
-      if (url && !value) {
-        value = url;
-        type = 'website';
-      }
-
+      if (url && !value) { value = url; type = 'website'; }
       if (!value) return res.status(400).json({ error: "Value is required" });
 
-      const ai = getAI();
-      const model = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
-      
+      const BASE_PROMPT = `You are a contract detective protecting gig workers and tenants from exploitative clauses. Return ONLY valid JSON, no markdown, no backticks.
+
+For EACH risky clause, produce TWO explanations:
+- "description": legal/technical explanation
+- "plain_explanation": everyday language for someone with no legal literacy
+- "impact_line": one-sentence real-world consequence (e.g. "This could mean you're let go with no notice and no final pay.")
+- "category_tag": short label like "Termination Risk", "Wage Deduction", "Unpaid Overtime", "Eviction Risk"
+
+JSON schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string","description":"string","severity":"low|medium|high","plain_explanation":"string","impact_line":"string","category_tag":"string"}${type === 'contract' ? `${','}"key_points":["string"]` : ''}]}`;
+
       if (type === 'website') {
         const fetchRest = await fetchWebsiteContent(value);
-        const content = fetchRest?.content;
-        const fetchedTitle = fetchRest?.title;
-        const fetchedFavicon = fetchRest?.favicon;
+        let prompt = BASE_PROMPT + `\nURL: ${value}\nTEXT: ${fetchRest?.content || ''}`;
 
-        const systemPrompt = `You are a contract detective protecting gig workers and tenants from exploitative clauses. Read the document. Identify every risky or dangerous clause. For EACH clause, produce TWO explanations:
-
-1. "description" — the legal/technical explanation of what the clause means.
-2. "plain_explanation" — explain the same clause in everyday language, targeting someone with no legal literacy. Write it so a gig worker or tenant understands exactly what this means for them.
-
-Also provide:
-- "impact_line" — one short, concrete sentence showing the real-world consequence. E.g. "This could mean you're let go with no notice and no final pay." Make it specific to the actual clause.
-- "category_tag" — a short label like "Termination Risk", "Wage Deduction", "Unpaid Overtime", "Eviction Risk", "Deposit Forfeiture".
-
-${content ? "" : "You have access to a tool called 'googleSearch' to find latest policy information if the provided content is insufficient."}
-DO NOT invent or use any other tools. Return the final result as a JSON object directly following the requested schema.`;
-
-        const userPrompt = `Analyze the following website Terms of Service or Privacy Policy. 
-        URL: ${value}
-        ${content ? `CONTENT: ${content}` : "The content could not be fetched directly. Please USE THE googleSearch tool to find a summary of the terms of service for this website."}
-
-        Response must be valid JSON with this schema:
-        {
-          "summary": "string",
-          "risk_score": number (1-10),
-          "risks": [{"title": "string", "description": "string", "severity": "low"|"medium"|"high", "plain_explanation": "string", "impact_line": "string", "category_tag": "string"}]
-        }`;
-
-        let chatCompletion;
-        
-        if (content) {
-          // Path A: FAST PATH - Content already available, no tools needed
-          chatCompletion = await ai.chat.completions.create({
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: userPrompt }
-            ],
-            model: model,
-            response_format: { type: "json_object" },
-            temperature: 0.1
-          });
-        } else {
-          // Path B: SEARCH PATH - Need to use search tools
-          const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
-            {
-              type: "function",
-              function: {
-                name: "googleSearch",
-                description: "Search Google for the latest terms or policies of a company",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    query: { type: "string", description: "The search query" }
-                  },
-                  required: ["query"]
-                }
-              }
-            }
-          ];
-
-          let messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt }
-          ];
-          
-          let toolCallCompletion = await ai.chat.completions.create({
-            messages,
-            model: model,
-            tools: tools,
-            tool_choice: "auto",
-            temperature: 0.1
-          });
-
-          const responseMessage = toolCallCompletion.choices[0].message;
-          if (responseMessage.tool_calls) {
-            messages.push(responseMessage);
-            
-            for (const toolCall of responseMessage.tool_calls) {
-              const tc = toolCall as unknown as ToolCall;
-              const functionInstanceName = tc.function.name;
-              const functionArgs = JSON.parse(tc.function.arguments);
-              
-              if (functionInstanceName === 'googleSearch') {
-                const searchResult = await googleSearch(functionArgs.query);
-                messages.push({
-                  tool_call_id: tc.id,
-                  role: "tool" as const,
-                  name: functionInstanceName,
-                  content: searchResult,
-                } as OpenAI.Chat.Completions.ChatCompletionMessageParam);
-              }
-            }
-            
-            chatCompletion = await ai.chat.completions.create({
-              messages,
-              model: model,
-              response_format: { type: "json_object" },
-              temperature: 0.1
-            });
-          } else {
-            // Fallback if it didn't use tools but still needs to return JSON
-            chatCompletion = await ai.chat.completions.create({
-              messages,
-              model: model,
-              response_format: { type: "json_object" },
-              temperature: 0.1
-            });
-          }
+        if (!fetchRest?.content) {
+          const searchQuery = `${value} terms of service privacy policy`;
+          const searchResult = await googleSearch(searchQuery);
+          prompt = BASE_PROMPT + `\nURL: ${value}\nThe page couldn't be fetched directly. Here are search results:\n${searchResult}\n\nAnalyze what you can from these search results. Return JSON.`;
         }
-
-        const parsed = JSON.parse(chatCompletion.choices[0].message.content || "{}");
-        let hostname = value;
-        try { hostname = new URL(value).hostname; } catch(e) {}
-
-        res.json({
-          id: Math.random().toString(36).substring(7),
-          timestamp: Date.now(),
-          type: 'website',
-          title: title || fetchedTitle || hostname,
-          url: value,
-          favicon: req.body.favicon || fetchedFavicon || "",
-          ...parsed
-        });
+        const raw = await analyzeText(prompt);
+        const parsed = JSON.parse(extractJSON(raw));
+        let hostname = value; try { hostname = new URL(value).hostname; } catch {}
+        res.json({ id: crypto.randomUUID(), timestamp: Date.now(), type: 'website', title: title || fetchRest?.title || hostname, url: value, favicon: req.body.favicon || fetchRest?.favicon || "", ...parsed });
       } else {
-        // Contract analysis
-        const systemPrompt = `You are a contract detective protecting gig workers and tenants from exploitative clauses. Analyze the contract text. For EACH risky clause, produce TWO explanations:
-
-1. "risk" — the legal/technical explanation of what the clause means.
-2. "plain_explanation" — explain the same clause in everyday language, targeting someone with no legal literacy. Write it so a gig worker or tenant understands exactly what this means for them.
-
-Also provide:
-- "impact_line" — one short, concrete sentence showing the real-world consequence. E.g. "This could mean you're let go with no notice and no final pay."
-- "category_tag" — a short label like "Termination Risk", "Wage Deduction", "Unpaid Overtime".`;
-
-        const userPrompt = `CONTRACT TEXT:
-        ${value}
-
-        Response must be valid JSON with this schema:
-        {
-          "summary": "string",
-          "risk_score": number (1-10),
-          "key_points": ["string"],
-          "risks": [{"clause": "string", "risk": "string", "severity": "low"|"medium"|"high", "plain_explanation": "string", "impact_line": "string", "category_tag": "string"}]
-        }`;
-
-        const chatCompletion = await ai.chat.completions.create({
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt }
-          ],
-          model: model,
-          response_format: { type: "json_object" },
-          temperature: 0.1
-        });
-
-        const parsed = JSON.parse(chatCompletion.choices[0].message.content || "{}");
-        const risks = (parsed.risks || []).map((r: { clause: string; risk: string; severity: string; plain_explanation?: string; impact_line?: string; category_tag?: string }) => ({
-          title: r.clause,
-          description: r.risk,
-          severity: r.severity,
-          plain_explanation: r.plain_explanation,
-          impact_line: r.impact_line,
-          category_tag: r.category_tag,
-        }));
-
-        res.json({
-          id: Math.random().toString(36).substring(7),
-          timestamp: Date.now(),
-          type: 'contract',
-          title: title || "Contract Analysis",
-          risk_score: parsed.risk_score || 1,
-          summary: parsed.summary,
-          key_points: parsed.key_points,
-          risks,
-          original_text: value
-        });
+        const prompt = BASE_PROMPT + `\nCONTRACT TEXT:\n${value}`;
+        const raw = await analyzeText(prompt);
+        const parsed = JSON.parse(extractJSON(raw));
+        const risks = (parsed.risks || []).map((r: any) => ({ title: r.clause || r.title, description: r.risk || r.description, severity: r.severity || 'medium', plain_explanation: r.plain_explanation, impact_line: r.impact_line, category_tag: r.category_tag }));
+        res.json({ id: crypto.randomUUID(), timestamp: Date.now(), type: 'contract', title: title || "Contract Analysis", risk_score: parsed.risk_score || 1, summary: parsed.summary, key_points: parsed.key_points, risks, original_text: value });
       }
     } catch (error) {
       console.error("AI Analysis Error:", error);
@@ -507,22 +328,8 @@ Also provide:
     try {
       const { text, targetLanguage } = req.body;
       if (!text || !targetLanguage) return res.status(400).json({ error: "Text and targetLanguage are required" });
-
-      const ai = getAI();
-      const model = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
-      
-      const prompt = `Translate the following text into ${targetLanguage}. 
-      Keep it simple and natural for everyday understanding. Return ONLY the translated text.
-      
-      TEXT:
-      ${text}`;
-
-      const chatCompletion = await ai.chat.completions.create({
-        messages: [{ role: "user", content: prompt }],
-        model: model
-      });
-
-      res.json({ translatedText: chatCompletion.choices[0].message.content?.trim() || text });
+      const translated = await translateText(text, targetLanguage);
+      res.json({ translatedText: translated });
     } catch (error) {
       console.error("Translation Error:", error);
       res.status(500).json({ error: "Translation failed" });
@@ -532,53 +339,38 @@ Also provide:
   // OCR + Analysis endpoint for photo/contract uploads
   app.post("/api/ocr-analyze", async (req, res) => {
     try {
-      const { image } = req.body;
+      const { image, useDirectImage } = req.body;
       if (!image) return res.status(400).json({ error: "Image (base64) required." });
 
       const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
       const imageBuffer = Buffer.from(base64Data, 'base64');
+      const mimeType = image.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
 
       console.log(`[OCR] Processing image (${(imageBuffer.length / 1024).toFixed(1)} KB)...`);
-      const ocrResult = await ocrImage(imageBuffer);
-      console.log(`[OCR] Extracted ${ocrResult.text.length} chars, ${ocrResult.words.length} words.`);
 
-      const ai = getAI();
-      const model = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
-      const prompt = `You are a contract detective protecting gig workers and tenants. Analyze this employment contract or lease. For EACH risky clause, produce TWO explanations — legal and plain-language. Also provide impact_line and category_tag.
+      const prompt = `You are a contract detective protecting gig workers and tenants. Analyze this employment contract or lease photograph. Return ONLY valid JSON (no markdown, no backticks) with:
+{"summary":"string","risk_score":number(1-10),"risks":[{"clause":"string","risk":"string","severity":"low|medium|high","plain_explanation":"string","impact_line":"string","category_tag":"string"}]}`;
 
-CONTRACT TEXT (extracted via OCR):
-${ocrResult.text}
+      let raw: string;
+      let pathUsed = 'ocr';
 
-Return valid JSON: {"summary":"string","risk_score":number(1-10),"risks":[{"clause":"string","risk":"string","severity":"low|medium|high","plain_explanation":"string","impact_line":"string","category_tag":"string"}]}`;
+      if (useDirectImage) {
+        console.log('[OCR] Using multimodal (direct image) path...');
+        raw = await analyzeImage(base64Data, mimeType, prompt);
+        pathUsed = 'multimodal';
+      } else {
+        const ocrResult = await ocrImage(imageBuffer);
+        console.log(`[OCR] Extracted ${ocrResult.text.length} chars.`);
+        raw = await analyzeText(`Analyze this employment contract or lease. Return ONLY valid JSON (no markdown, no backticks) with summary, risk_score, risks[{clause,risk,severity,plain_explanation,impact_line,category_tag}].\n\nCONTRACT TEXT:\n${ocrResult.text}`);
+      }
 
-      const cc = await ai.chat.completions.create({
-        messages: [{ role: "user", content: prompt }],
-        model, response_format: { type: "json_object" }, temperature: 0.1
-      });
-
-      const parsed = JSON.parse(cc.choices[0].message.content || "{}");
+      const parsed = JSON.parse(extractJSON(raw));
       const risks = (parsed.risks || []).map((r: any) => ({
-        title: r.clause, description: r.risk, severity: r.severity,
+        title: r.clause, description: r.risk, severity: r.severity || 'medium',
         plain_explanation: r.plain_explanation, impact_line: r.impact_line, category_tag: r.category_tag,
       }));
 
-      // Highlight the image
-      const clausesForHighlight = risks.map((r: { title: string; severity: string }) => ({ text: r.title, severity: r.severity }));
-      const { matchCount } = await highlightImage(imageBuffer, ocrResult.words, clausesForHighlight as any);
-
-      // Return analysis + OCR text (highlighted image can be generated on demand)
-      res.json({
-        id: crypto.randomUUID(),
-        timestamp: Date.now(),
-        type: 'contract',
-        title: "Scanned Document",
-        summary: parsed.summary,
-        risk_score: parsed.risk_score || 1,
-        risks,
-        original_text: ocrResult.text,
-        ocr_confidence: ocrResult.words.length > 0 ? Math.round(ocrResult.words.reduce((s: number, w: { confidence: number }) => s + w.confidence, 0) / ocrResult.words.length) : 0,
-        highlighted_words: matchCount,
-      });
+      res.json({ id: crypto.randomUUID(), timestamp: Date.now(), type: 'contract', title: "Scanned Document", summary: parsed.summary, risk_score: parsed.risk_score || 1, risks, path: pathUsed });
     } catch (err) {
       console.error("[OCR] Error:", err);
       res.status(500).json({ error: err instanceof Error ? err.message : "OCR/Analysis failed." });

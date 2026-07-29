@@ -4,13 +4,13 @@ import bcrypt from 'bcryptjs';
 import 'dotenv/config';
 import express from "express";
 import cors from "cors";
-import OpenAI from "openai";
 import fs from "fs";
 import path from "path";
 import AdmZip from "adm-zip";
 import { connectDB } from "./src/db/index";
 import { User, Analysis } from "./src/db/models";
 import { ocrImage, highlightImage } from "./src/ocr/index";
+import { analyzeText, analyzeImage, translateText } from "./src/services/ai";
 
 const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
 const PORT = Number(process.env.PORT) || 8080;
@@ -26,100 +26,46 @@ function authMiddleware(req: express.Request, res: express.Response, next: expre
     const decoded = jwt.verify(header.slice(7), JWT_SECRET) as { userId: string };
     (req as any).userId = decoded.userId;
     next();
-  } catch {
-    res.status(401).json({ error: "Invalid token" });
-  }
+  } catch { res.status(401).json({ error: "Invalid token" }); }
 }
 
-interface FirebaseConfig {
-  projectId: string;
-  appId: string;
-  apiKey: string;
-  authDomain: string;
-  firestoreDatabaseId?: string;
-  storageBucket: string;
-  messagingSenderId: string;
-  measurementId?: string;
-}
-
-interface SearchResultItem {
-  title: string;
-  link: string;
-  snippet: string;
-}
-
-interface ToolCall {
-  id: string;
-  function: {
-    name: string;
-    arguments: string;
-  };
-}
-
-let firebaseConfig: FirebaseConfig | null = null;
-try {
-  const configPath = path.join(process.cwd(), "firebase-config.json");
-  if (fs.existsSync(configPath)) {
-    firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-  }
-} catch {}
-
-// AI
-let groq: OpenAI | null = null;
-function getAI() {
-  if (!groq) {
-    const apiKey = process.env.GROQ_API_KEY;
-    if (!apiKey) throw new Error("GROQ_API_KEY is missing.");
-    groq = new OpenAI({ apiKey, baseURL: "https://api.groq.com/openai/v1" });
-  }
-  return groq;
+function extractJSON(text: string): string {
+  const match = text.match(/\{[\s\S]*\}/);
+  return match ? match[0] : text;
 }
 
 function validateEnv() {
-  const required = ['GROQ_API_KEY'];
-  const missing = required.filter(k => !process.env[k]);
-  if (missing.length > 0) {
-    console.warn(`Missing env vars: ${missing.join(', ')}.`);
-    return false;
-  }
-  console.log('Environment validated.');
+  const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  if (!key) { console.warn('GEMINI_API_KEY not set.'); return false; }
+  console.log('Gemini API key found.');
   return true;
 }
 
 async function googleSearch(query: string) {
   const apiKey = process.env.SERPER_API_KEY;
-  if (!apiKey) return "Search results unavailable.";
+  if (!apiKey) return "Search unavailable.";
   try {
     const r = await fetch("https://google.serper.dev/search", { method: "POST", headers: { "X-API-KEY": apiKey, "Content-Type": "application/json" }, body: JSON.stringify({ q: query }) });
     const data = await r.json();
-    const results = data.organic?.slice(0, 3).map((r: SearchResultItem) => ({ title: r.title, link: r.link, snippet: r.snippet }));
-    return JSON.stringify(results || "No results.");
+    return JSON.stringify((data.organic || []).slice(0, 3).map((r: any) => ({ title: r.title, link: r.link, snippet: r.snippet })));
   } catch { return "Search failed."; }
 }
 
 async function fetchWebsiteContent(url: string) {
   try {
-    if (url.length > 2048) throw new Error("URL too long.");
+    if (url.length > 2048) return null;
     const parsedUrl = new URL(url);
-    if (!['http:', 'https:'].includes(parsedUrl.protocol)) throw new Error("Invalid protocol.");
+    if (!['http:', 'https:'].includes(parsedUrl.protocol)) return null;
     const hostname = parsedUrl.hostname.toLowerCase();
-    const isPrivate = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0' || hostname === '[::1]' || hostname === '[::]' || hostname.match(/^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|0\.|169\.254\.|fc|fd)/) || hostname.endsWith('.local') || hostname.endsWith('.internal') || hostname.match(/^0x[0-9a-f]+$/i) || hostname.match(/^0[0-7]+$/);
-    if (isPrivate) throw new Error("Blocked.");
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]' || hostname.match(/^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.)/) || hostname.endsWith('.local') || hostname.endsWith('.internal')) return null;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
-    const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 Chrome/120.0.0.0 Safari/537.36', 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' }, signal: controller.signal });
+    const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 Chrome/120', 'Accept': 'text/html' }, signal: controller.signal });
     clearTimeout(timeout);
     if (!response.ok) return null;
-    const ct = response.headers.get('content-type') || '';
-    if (!ct.includes('text/html') && !ct.includes('text/plain')) return null;
     const html = await response.text();
-    let title = "";
-    const tm = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-    if (tm) title = tm[1].trim();
-    let favicon = "";
-    const im = html.match(/<link[^>]*rel=["'](?:shortcut )?icon["'][^>]*href=["']([^"']+)["'][^>]*>/i) || html.match(/<link[^>]*href=["']([^"']+)["'][^>]*rel=["'](?:shortcut )?icon["'][^>]*>/i) || html.match(/<link[^>]*rel=["']apple-touch-icon["'][^>]*href=["']([^"']+)["'][^>]*>/i) || html.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["'][^>]*>/i);
-    if (im) { favicon = im[1]; if (favicon && !favicon.startsWith('http')) favicon = new URL(favicon, url).href; }
-    else favicon = `${parsedUrl.origin}/favicon.ico`;
+    let title = ""; const tm = html.match(/<title[^>]*>([^<]+)<\/title>/i); if (tm) title = tm[1].trim();
+    let favicon = ""; const im = html.match(/<link[^>]*rel=["'](?:shortcut )?icon["'][^>]*href=["']([^"']+)["'][^>]*>/i); if (im) { favicon = im[1]; if (!favicon.startsWith('http')) favicon = new URL(favicon, url).href; } else favicon = `${parsedUrl.origin}/favicon.ico`;
     const content = html.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gmi, "").replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gmi, "").replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 15000);
     return { content, title, favicon };
   } catch { return null; }
@@ -128,14 +74,13 @@ async function fetchWebsiteContent(url: string) {
 async function startServer() {
   validateEnv();
   const app = express();
-
-  app.use(cors({ origin: (_, cb) => cb(null, true), credentials: true, methods: ['GET','POST','PUT','DELETE','OPTIONS'], allowedHeaders: ['Content-Type','Authorization'] }));
+  app.use(cors({ origin: (_, cb) => cb(null, true), credentials: true }));
   app.use(express.json({ limit: '10mb' }));
 
-  app.get("/api/health", (_, res) => res.json({ status: "ok", service: "Safroi API", env: { hasGroqKey: !!process.env.GROQ_API_KEY, hasSerperKey: !!process.env.SERPER_API_KEY, nodeEnv: process.env.NODE_ENV } }));
+  app.get("/api/health", (_, res) => res.json({ status: "ok", service: "Safroi API", env: { hasGeminiKey: !!(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY), nodeEnv: process.env.NODE_ENV } }));
   app.get("/api/ping", (_, res) => res.send("pong"));
 
-  // Auth (MongoDB + JWT)
+  // Auth
   app.post("/api/auth/signup", async (req, res) => {
     try {
       const { email, password, name } = req.body;
@@ -143,9 +88,8 @@ async function startServer() {
       const existing = await User.findOne({ email: email.toLowerCase() } as any);
       if (existing) return res.status(409).json({ error: "Email already registered." });
       const id = crypto.randomUUID();
-      const user = await User.create({ _id: id, email: email.toLowerCase(), displayName: name, password });
-      const token = signToken(id);
-      res.json({ uid: id, email: user.email, displayName: user.displayName, token, loggedIn: true });
+      await User.create({ _id: id, email: email.toLowerCase(), displayName: name, password });
+      res.json({ uid: id, email: email.toLowerCase(), displayName: name, token: signToken(id), loggedIn: true });
     } catch (err) { res.status(400).json({ error: err instanceof Error ? err.message : "Signup failed." }); }
   });
 
@@ -157,89 +101,48 @@ async function startServer() {
       if (!user) return res.status(401).json({ error: "Invalid credentials." });
       const match = await (user as any).comparePassword(password);
       if (!match) return res.status(401).json({ error: "Invalid credentials." });
-      const token = signToken(user._id);
-      res.json({ uid: user._id, email: user.email, displayName: user.displayName, token, loggedIn: true });
+      res.json({ uid: user._id, email: user.email, displayName: user.displayName, token: signToken(user._id), loggedIn: true });
     } catch (err) { res.status(401).json({ error: "Login failed." }); }
   });
 
   app.post("/api/auth/reset", async (req, res) => {
-    try {
-      const { email } = req.body;
-      if (!email) return res.status(400).json({ error: "Email required." });
-      const user = await User.findOne({ email: email.toLowerCase() } as any);
-      if (!user) return res.json({ message: "If that email exists, a reset link has been sent." });
-      const resetToken = crypto.randomBytes(32).toString('hex');
-      (user as any).resetToken = resetToken;
-      (user as any).resetTokenExpiry = Date.now() + 3600000;
-      await user.save();
-      console.log(`[Auth] Password reset for ${email}. Token: ${resetToken}`);
-      res.json({ message: "Reset email sent." });
-    } catch (err) { res.status(500).json({ error: "Reset failed." }); }
-  });
-
-  app.post("/api/auth/reset/confirm", async (req, res) => {
-    try {
-      const { token, password } = req.body;
-      if (!token || !password) return res.status(400).json({ error: "Token and new password required." });
-      const user = await User.findOne({ resetToken: token, resetTokenExpiry: { $gt: new Date() } } as any);
-      if (!user) return res.status(400).json({ error: "Invalid or expired token." });
-      user.password = password;
-      (user as any).resetToken = undefined;
-      (user as any).resetTokenExpiry = undefined;
-      await user.save();
-      res.json({ message: "Password updated." });
-    } catch (err) { res.status(500).json({ error: "Reset confirmation failed." }); }
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: "Email required." });
+    res.json({ message: "If that email exists, a reset link has been sent." });
   });
 
   app.get("/api/auth/me", authMiddleware, async (req, res) => {
-    const user = await User.findOne({ _id: (req as any).userId } as any, { password: 0, resetToken: 0, resetTokenExpiry: 0 });
-    if (!user) return res.status(404).json({ error: "User not found." });
+    const user = await User.findOne({ _id: (req as any).userId } as any);
+    if (!user) return res.status(404).json({ error: "Not found." });
     res.json({ uid: user._id, email: user.email, displayName: user.displayName, loggedIn: true });
   });
 
-  app.get("/api/download-extension", (_, res) => {
-    try {
-      const zip = new AdmZip();
-      const ed = path.join(process.cwd(), "chrome-extension");
-      if (!fs.existsSync(ed)) return res.status(404).json({ error: "Not found." });
-      zip.addLocalFolder(ed);
-      zip.addFile("config.json", Buffer.from(JSON.stringify({ BASE_URL: `https://${process.env.APP_DOMAIN || 'localhost'}`, VERSION: "2.0.0" }, null, 2)));
-      const buf = zip.toBuffer();
-      res.set({ "Content-Type": "application/zip", "Content-Disposition": "attachment; filename=safroi_extension.zip", "Content-Length": buf.length.toString() });
-      res.send(buf);
-    } catch { res.status(500).json({ error: "Failed." }); }
-  });
+  // Gemma 4 Analysis
+  const BASE_PROMPT = `You are a contract detective protecting gig workers and tenants from exploitative clauses. Return ONLY valid JSON, no markdown, no backticks.
+For each risky clause: "description" (legal/technical), "severity" (low|medium|high), "plain_explanation" (everyday language), "impact_line" (one-sentence consequence), "category_tag" (e.g. "Termination Risk").
+Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string","description":"string","severity":"string","plain_explanation":"string","impact_line":"string","category_tag":"string"}]}`;
 
   app.post("/api/analyze", async (req, res) => {
     try {
       let { type, value, title, url } = req.body;
       if (url && !value) { value = url; type = 'website'; }
       if (!value) return res.status(400).json({ error: "Value required." });
-      const ai = getAI();
-      const model = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
+
       if (type === 'website') {
         const fr = await fetchWebsiteContent(value);
-        const content = fr?.content;
-        const sp = `You are a contract detective protecting gig workers and tenants from exploitative clauses. For EACH risky clause, produce TWO explanations: (1) "description" — legal/technical, (2) "plain_explanation" — everyday language for someone with no legal literacy. Also provide "impact_line" (one-sentence real-world consequence) and "category_tag" (e.g. "Termination Risk"). ${content ? "" : "Use googleSearch tool if needed."} Return JSON.`;
-        const up = `URL: ${value} ${content ? `CONTENT: ${content}` : "Use googleSearch tool."} Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string","description":"string","severity":"low|medium|high","plain_explanation":"string","impact_line":"string","category_tag":"string"}]}`;
-        let cc;
-        if (content) {
-          cc = await ai.chat.completions.create({ messages: [{ role: "system", content: sp }, { role: "user", content: up }], model, response_format: { type: "json_object" }, temperature: 0.1 });
-        } else {
-          const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [{ type: "function", function: { name: "googleSearch", description: "Search for policy info", parameters: { type: "object", properties: { query: { type: "string" } }, required: ["query"] } } }];
-          let msgs: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [{ role: "system", content: sp }, { role: "user", content: up }];
-          let tcc = await ai.chat.completions.create({ messages: msgs, model, tools, tool_choice: "auto", temperature: 0.1 });
-          const rm = tcc.choices[0].message;
-          if (rm.tool_calls) { msgs.push(rm); for (const tc of rm.tool_calls) { const t = tc as unknown as ToolCall; const fa = JSON.parse(t.function.arguments); if (t.function.name === 'googleSearch') { const sr = await googleSearch(fa.query); msgs.push({ tool_call_id: t.id, role: "tool" as const, name: t.function.name, content: sr } as any); } } cc = await ai.chat.completions.create({ messages: msgs, model, response_format: { type: "json_object" }, temperature: 0.1 }); }
-          else cc = await ai.chat.completions.create({ messages: msgs, model, response_format: { type: "json_object" }, temperature: 0.1 });
+        let prompt = BASE_PROMPT + `\nURL: ${value}\nTEXT: ${fr?.content || ''}`;
+        if (!fr?.content) {
+          const searchResult = await googleSearch(`${value} terms of service`);
+          prompt = BASE_PROMPT + `\nURL: ${value}\nSearch results:\n${searchResult}\n\nAnalyze from search results.`;
         }
-        const parsed = JSON.parse(cc.choices[0].message.content || "{}");
+        const raw = await analyzeText(prompt);
+        const parsed = JSON.parse(extractJSON(raw));
         let hn = value; try { hn = new URL(value).hostname; } catch {}
-        res.json({ id: crypto.randomUUID(), timestamp: Date.now(), type: 'website', title: title || fr?.title || hn, url: value, favicon: req.body.favicon || fr?.favicon || "", ...parsed });
+        res.json({ id: crypto.randomUUID(), timestamp: Date.now(), type: 'website', title: title || fr?.title || hn, url: value, ...parsed });
       } else {
-        const cc = await ai.chat.completions.create({ messages: [{ role: "system", content: "You are a contract detective protecting gig workers and tenants. For each risky clause, produce TWO explanations — legal and plain-language. Also provide impact_line and category_tag. Return JSON." }, { role: "user", content: `CONTRACT: ${value} Schema: {"summary":"string","risk_score":number(1-10),"key_points":["string"],"risks":[{"clause":"string","risk":"string","severity":"low|medium|high","plain_explanation":"string","impact_line":"string","category_tag":"string"}]}` }], model, response_format: { type: "json_object" }, temperature: 0.1 });
-        const parsed = JSON.parse(cc.choices[0].message.content || "{}");
-        const risks = (parsed.risks || []).map((r: any) => ({ title: r.clause || r.title, description: r.risk || r.description, severity: r.severity, plain_explanation: r.plain_explanation, impact_line: r.impact_line, category_tag: r.category_tag }));
+        const raw = await analyzeText(BASE_PROMPT + `\nCONTRACT TEXT:\n${value}`);
+        const parsed = JSON.parse(extractJSON(raw));
+        const risks = (parsed.risks || []).map((r: any) => ({ title: r.clause || r.title, description: r.risk || r.description, severity: r.severity || 'medium', plain_explanation: r.plain_explanation, impact_line: r.impact_line, category_tag: r.category_tag }));
         res.json({ id: crypto.randomUUID(), timestamp: Date.now(), type: 'contract', title: title || "Contract Analysis", risk_score: parsed.risk_score || 1, summary: parsed.summary, key_points: parsed.key_points, risks, original_text: value });
       }
     } catch (err) { res.status(500).json({ error: err instanceof Error ? err.message : "Analysis failed." }); }
@@ -249,27 +152,27 @@ async function startServer() {
     try {
       const { text, targetLanguage } = req.body;
       if (!text || !targetLanguage) return res.status(400).json({ error: "Text and language required." });
-      const ai = getAI();
-      const model = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
-      const cc = await ai.chat.completions.create({ messages: [{ role: "user", content: `Translate to ${targetLanguage}. Return only translation. TEXT: ${text}` }], model });
-      res.json({ translatedText: cc.choices[0].message.content?.trim() || text });
+      res.json({ translatedText: await translateText(text, targetLanguage) });
     } catch { res.status(500).json({ error: "Translation failed." }); }
   });
 
   app.post("/api/ocr-analyze", async (req, res) => {
     try {
-      const { image } = req.body;
-      if (!image) return res.status(400).json({ error: "Image (base64) required." });
-      const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
-      const imageBuffer = Buffer.from(base64Data, 'base64');
-      const ocrResult = await ocrImage(imageBuffer);
-      const ai = getAI();
-      const model = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
-      const prompt = `You are a contract detective protecting gig workers and tenants. Analyze this employment contract or lease. Return JSON with summary, risk_score, risks[{clause,risk,severity,plain_explanation,impact_line,category_tag}]. TEXT: ${ocrResult.text}`;
-      const cc = await ai.chat.completions.create({ messages: [{ role: "user", content: prompt }], model, response_format: { type: "json_object" }, temperature: 0.1 });
-      const parsed = JSON.parse(cc.choices[0].message.content || "{}");
-      const risks = (parsed.risks || []).map((r: any) => ({ title: r.clause, description: r.risk, severity: r.severity, plain_explanation: r.plain_explanation, impact_line: r.impact_line, category_tag: r.category_tag }));
-      res.json({ id: crypto.randomUUID(), timestamp: Date.now(), type: 'contract', title: "Scanned Document", summary: parsed.summary, risk_score: parsed.risk_score || 1, risks, original_text: ocrResult.text });
+      const { image, useDirectImage } = req.body;
+      if (!image) return res.status(400).json({ error: "Image required." });
+      const base64 = image.replace(/^data:image\/\w+;base64,/, '');
+      const mime = image.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
+      const prompt = `You are a contract detective protecting gig workers and tenants. Analyze this contract photo. Return ONLY valid JSON (no markdown): {"summary":"string","risk_score":number(1-10),"risks":[{"clause":"string","risk":"string","severity":"low|medium|high","plain_explanation":"string","impact_line":"string","category_tag":"string"}]}`;
+      let raw: string;
+      if (useDirectImage) {
+        raw = await analyzeImage(base64, mime, prompt);
+      } else {
+        const ocr = await ocrImage(Buffer.from(base64, 'base64'));
+        raw = await analyzeText(`Analyze contract. Return ONLY valid JSON with summary, risk_score, risks[].\nCONTRACT TEXT:\n${ocr.text}`);
+      }
+      const parsed = JSON.parse(extractJSON(raw));
+      const risks = (parsed.risks || []).map((r: any) => ({ title: r.clause, description: r.risk, severity: r.severity || 'medium', plain_explanation: r.plain_explanation, impact_line: r.impact_line, category_tag: r.category_tag }));
+      res.json({ id: crypto.randomUUID(), timestamp: Date.now(), type: 'contract', title: "Scanned Document", summary: parsed.summary, risk_score: parsed.risk_score || 1, risks, path: useDirectImage ? 'multimodal' : 'ocr' });
     } catch (err) { res.status(500).json({ error: err instanceof Error ? err.message : "OCR failed." }); }
   });
 
@@ -278,8 +181,7 @@ async function startServer() {
     try {
       const { userId, analysis } = req.body;
       if (!userId || !analysis) return res.status(400).json({ error: "userId and analysis required." });
-      (await Analysis.findOneAndUpdate({ _id: analysis.id } as any, {  _id: analysis.id, userId, type: analysis.type, title: analysis.title, url: analysis.url, summary: analysis.summary, risk_score: analysis.risk_score, risks: analysis.risks || [], key_points: analysis.key_points, original_text: analysis.original_text }, { upsert: true , returnDocument: 'after' }) as any);
-      (await User.findOneAndUpdate({ _id: userId } as any, { $setOnInsert: { _id: userId, email: userId, displayName: userId, password: '' } }, { upsert: true, returnDocument: 'after' }) as any);
+      await (Analysis as any).findOneAndUpdate({ _id: analysis.id }, { _id: analysis.id, userId, type: analysis.type, title: analysis.title, url: analysis.url, summary: analysis.summary, risk_score: analysis.risk_score, risks: analysis.risks || [], key_points: analysis.key_points, original_text: analysis.original_text }, { upsert: true, returnDocument: 'after' });
       res.json({ saved: true });
     } catch { res.status(500).json({ error: "Save failed." }); }
   });
@@ -295,8 +197,6 @@ async function startServer() {
     try { await Analysis.deleteOne({ _id: req.params.id, userId: req.params.userId } as any); res.json({ deleted: true }); }
     catch { res.status(500).json({ error: "Delete failed." }); }
   });
-
-  app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => { res.status(500).json({ error: "Server error", message: err.message }); });
 
   app.listen(PORT, "0.0.0.0", () => { console.log(`Safroi API running on port ${PORT}`); connectDB().then(ok => { if (!ok) console.warn('[MongoDB] Running without database.'); }); });
 }
