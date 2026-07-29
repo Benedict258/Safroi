@@ -12,7 +12,7 @@ interface ResultViewProps {
 export function ResultView({ result }: ResultViewProps) {
   const [isTranslating, setIsTranslating] = useState(false);
   const [translatedSummary, setTranslatedSummary] = useState<string | null>(null);
-  const [targetLang, setTargetLang] = useState('Spanish');
+  const [targetLang, setTargetLang] = useState('Hausa');
   const [viewMode, setViewMode] = useState<ViewMode>('plain');
 
   const handleTranslate = async () => {
@@ -97,11 +97,14 @@ export function ResultView({ result }: ResultViewProps) {
           <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">Quick Summary</h2>
           <div className="flex items-center gap-2 bg-[#121923] p-1 rounded-xl border border-white/10">
              <select 
-               value={targetLang || 'Spanish'}
+               value={targetLang || 'Hausa'}
                onChange={(e) => setTargetLang(e.target.value)}
                className="text-xs md:text-sm border-none bg-transparent rounded-lg px-3 py-1.5 md:px-4 md:py-2 focus:ring-0 text-white font-bold cursor-pointer hover:bg-white/10 transition-colors"
              >
-               <option className="bg-[#050B10]">Spanish</option>
+               <option className="bg-[#050B10]">Hausa</option>
+               <option className="bg-[#050B10]">Yoruba</option>
+               <option className="bg-[#050B10]">Igbo</option>
+               <option className="bg-[#050B10]">English</option>
                <option className="bg-[#050B10]">French</option>
                <option className="bg-[#050B10]">German</option>
                <option className="bg-[#050B10]">Japanese</option>
