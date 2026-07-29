@@ -112,6 +112,16 @@ async function resetIcon() {
   chrome.action.setBadgeText({ text: "" });
 }
 
+function hashString(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash |= 0;
+  }
+  return hash.toString(36);
+}
+
 async function analyzeDomain(domain, fullUrl, favicon) {
   try {
     // Before analysis, try to see if BASE_URL is still valid
@@ -151,6 +161,22 @@ async function analyzeDomain(domain, fullUrl, favicon) {
     data.favicon = favicon;
     data.timestamp = Date.now();
     data.domain = domain;
+
+    // Policy update tracking — compare with previous analysis
+    chrome.storage.local.get([`${domain}_previous`], (prev) => {
+      const previous = prev[`${domain}_previous`];
+      const newHash = hashString(data.summary || '' + JSON.stringify(data.risks || []));
+      if (previous && previous.hash !== newHash) {
+        data.policyUpdated = true;
+        data.previousScore = previous.risk_score;
+        data.previousTimestamp = previous.timestamp;
+        console.log(`[Update] ${domain} policy changed! Score: ${previous.risk_score} → ${data.risk_score}`);
+      }
+      chrome.storage.local.set({
+        [domain]: data,
+        [`${domain}_previous`]: { hash: newHash, risk_score: data.risk_score, timestamp: Date.now() }
+      });
+    });
 
     // Store in chrome storage
     chrome.storage.local.set({ [domain]: data });

@@ -179,6 +179,20 @@
     .risk-title { font-weight: 700; font-size: 13px; margin-bottom: 4px; }
     .risk-desc { font-size: 11px; color: var(--muted); line-height: 1.4; }
 
+    .view-toggle { }
+    .view-btn {
+      flex: 1; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border);
+      background: transparent; color: var(--muted); font-size: 10px; font-weight: 800;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .view-btn.active { background: var(--mint); color: var(--bg); border-color: var(--mint); }
+
+    .risk-meta { display: flex; gap: 8px; align-items: center; margin-bottom: 4px; }
+    .risk-category { font-size: 9px; font-weight: 800; text-transform: uppercase; padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: var(--muted); }
+    .risk-impact { font-size: 11px; color: var(--mint); font-style: italic; margin-top: 6px; padding: 8px; border-radius: 8px; background: rgba(224,254,246,0.05); border: 1px solid rgba(224,254,246,0.1); }
+
+    .update-banner { padding: 10px; margin-bottom: 14px; border-radius: 10px; font-size: 11px; font-weight: 700; text-align: center; }
+
     .btn {
       width: 100%;
       background: var(--mint);
@@ -309,6 +323,10 @@
         <span class="severity" id="severityText">Scanning</span>
       </div>
       <div class="summary" id="summaryText"></div>
+      <div class="view-toggle" id="viewToggle" style="display:flex; gap:6px; margin-bottom:16px;">
+        <button id="legalViewBtn" class="view-btn active">Legal View</button>
+        <button id="plainViewBtn" class="view-btn">Plain View</button>
+      </div>
       <div class="risk-list" id="riskList"></div>
     </div>
     

@@ -479,6 +479,17 @@ function displayResult(data) {
     scoreValue.textContent = `${data.risk_score}/10`;
     summaryText.textContent = data.summary;
 
+    // Policy update notification
+    if (data.policyUpdated) {
+      const banner = document.createElement('div');
+      const delta = data.risk_score - (data.previousScore || 0);
+      const arrow = delta > 0 ? '↑' : delta < 0 ? '↓' : '→';
+      const color = delta > 0 ? '#EF4444' : delta < 0 ? '#22C55E' : '#F59E0B';
+      banner.style.cssText = `padding:10px;margin-bottom:14px;border-radius:10px;background:${color}10;border:1px solid ${color}30;font-size:11px;font-weight:700;color:${color};text-align:center;`;
+      banner.innerHTML = `Policy Updated ${arrow} Score: ${data.previousScore} → ${data.risk_score}`;
+      document.getElementById('results').insertBefore(banner, document.getElementById('results').children[2]);
+    }
+
     // Reset styles
     severityText.className = 'severity';
     scoreValue.className = 'score';
@@ -497,14 +508,34 @@ function displayResult(data) {
         scoreValue.classList.add('high');
     }
 
-    // Populate Risks
+    // View Toggle
+    let viewMode = 'legal';
+    const legalBtn = document.getElementById('legalViewBtn');
+    const plainBtn = document.getElementById('plainViewBtn');
+    const updateView = () => {
+        legalBtn.className = 'view-btn' + (viewMode === 'legal' ? ' active' : '');
+        plainBtn.className = 'view-btn' + (viewMode === 'plain' ? ' active' : '');
+        renderRisks(data.risks || [], viewMode);
+    };
+    legalBtn.onclick = () => { viewMode = 'legal'; updateView(); };
+    plainBtn.onclick = () => { viewMode = 'plain'; updateView(); };
+
+    renderRisks(data.risks || [], viewMode);
+}
+
+function renderRisks(risks, viewMode) {
     riskList.innerHTML = '';
-    (data.risks || []).slice(0, 3).forEach(risk => {
+    risks.slice(0, 3).forEach(risk => {
         const div = document.createElement('div');
         div.className = `risk-item ${risk.severity}`;
+        const explanation = viewMode === 'plain' && risk.plain_explanation ? risk.plain_explanation : risk.description;
+        const label = viewMode === 'plain' ? 'PLAIN LANGUAGE' : 'LEGAL EXPLANATION';
         div.innerHTML = `
             <div class="risk-title">${risk.title}</div>
-            <div class="risk-desc">${risk.description}</div>
+            ${risk.category_tag ? `<div class="risk-meta"><span class="risk-category">${risk.category_tag}</span></div>` : ''}
+            <div style="font-size:8px;font-weight:800;text-transform:uppercase;color:var(--muted);margin-bottom:2px;">${label}</div>
+            <div class="risk-desc">${explanation}</div>
+            ${risk.impact_line ? `<div class="risk-impact">"${risk.impact_line}"</div>` : ''}
         `;
         riskList.appendChild(div);
     });
