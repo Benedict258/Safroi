@@ -53,24 +53,37 @@ async function googleSearch(query: string) {
   } catch { return "Search failed."; }
 }
 
-async function fetchWebsiteContent(url: string) {
-  try {
-    if (url.length > 2048) return null;
-    const parsedUrl = new URL(url);
-    if (!['http:', 'https:'].includes(parsedUrl.protocol)) return null;
-    const hostname = parsedUrl.hostname.toLowerCase();
-    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]' || hostname.match(/^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.)/) || hostname.endsWith('.local') || hostname.endsWith('.internal')) return null;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
-    const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 Chrome/120', 'Accept': 'text/html' }, signal: controller.signal });
-    clearTimeout(timeout);
-    if (!response.ok) return null;
-    const html = await response.text();
+async function fetchWebsiteContent(inputUrl: string) {
+  const tryFetch = async (url: string) => {
+    const c = new AbortController();
+    const t = setTimeout(() => c.abort(), 10000);
+    try {
+      const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 Chrome/130', 'Accept': 'text/html' }, signal: c.signal, redirect: 'follow' });
+      clearTimeout(t);
+      if (!r.ok) return null;
+      return await r.text();
+    } catch { clearTimeout(t); return null; }
+  };
+  let pu: URL;
+  try { pu = new URL(inputUrl); } catch { return null; }
+  if (inputUrl.length > 2048) return null;
+  const h = pu.hostname.toLowerCase();
+  if (h === 'localhost' || h === '127.0.0.1' || h === '[::1]' || h.match(/^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.)/)) return null;
+
+  const urls = [inputUrl];
+  if (!inputUrl.includes('terms') && !inputUrl.includes('privacy') && !inputUrl.includes('policy')) {
+    urls.push(`${pu.origin}/terms`, `${pu.origin}/terms-of-service`, `${pu.origin}/privacy`, `${pu.origin}/privacy-policy`, `${pu.origin}/legal/terms`);
+  }
+  for (const u of urls) {
+    const html = await tryFetch(u);
+    if (!html || html.length < 300) continue;
     let title = ""; const tm = html.match(/<title[^>]*>([^<]+)<\/title>/i); if (tm) title = tm[1].trim();
-    let favicon = ""; const im = html.match(/<link[^>]*rel=["'](?:shortcut )?icon["'][^>]*href=["']([^"']+)["'][^>]*>/i); if (im) { favicon = im[1]; if (!favicon.startsWith('http')) favicon = new URL(favicon, url).href; } else favicon = `${parsedUrl.origin}/favicon.ico`;
-    const content = html.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gmi, "").replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gmi, "").replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 15000);
-    return { content, title, favicon };
-  } catch { return null; }
+    const content = html.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gmi, "").replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gmi, "").replace(/<nav\b[^>]*>([\s\S]*?)<\/nav>/gmi, "").replace(/<footer\b[^>]*>([\s\S]*?)<\/footer>/gmi, "").replace(/<header\b[^>]*>([\s\S]*?)<\/header>/gmi, "").replace(/<[^>]+>/g, ' ').replace(/&[a-z]+;/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 30000);
+    console.log(`[Fetch] Got ${content.length} chars from ${u}`);
+    return { content, title };
+  }
+  console.log(`[Fetch] No content for ${inputUrl}`);
+  return null;
 }
 
 async function startServer() {

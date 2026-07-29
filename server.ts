@@ -80,93 +80,105 @@ async function googleSearch(query: string) {
   }
 }
 
-// Hardened URL safety check and fetcher
-async function fetchWebsiteContent(url: string) {
-  try {
-    if (url.length > 2048) {
-      throw new Error("URL exceeds maximum length.");
-    }
+// Robust website content fetcher with ToS/Privacy page detection
+async function fetchWebsiteContent(inputUrl: string) {
+  const USER_AGENTS = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+  ];
 
-    const parsedUrl = new URL(url);
-
-    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
-      throw new Error("Only HTTP and HTTPS protocols are allowed.");
-    }
-
-    const hostname = parsedUrl.hostname.toLowerCase();
-
-    const isPrivate = 
-      hostname === 'localhost' ||
-      hostname === '127.0.0.1' ||
-      hostname === '0.0.0.0' ||
-      hostname === '[::1]' ||
-      hostname === '[::]' ||
-      hostname.match(/^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|0\.|169\.254\.|fc|fd)/) ||
-      hostname.endsWith('.local') ||
-      hostname.endsWith('.internal') ||
-      hostname.match(/^0x[0-9a-f]+$/i) ||
-      hostname.match(/^0[0-7]+$/);
-
-    if (isPrivate) {
-      throw new Error("Private and internal networks are blocked for security.");
-    }
-
+  const tryFetch = async (url: string, ua: string) => {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
-
-    const response = await fetch(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        },
+    const timeout = setTimeout(() => controller.abort(), 12000);
+    try {
+      const response = await fetch(url, {
+        headers: { 'User-Agent': ua, 'Accept': 'text/html,application/xhtml+xml,text/plain;q=0.9', 'Accept-Language': 'en-US,en;q=0.9' },
         signal: controller.signal,
+        redirect: 'follow',
       });
-
       clearTimeout(timeout);
-
       if (!response.ok) return null;
-
-      const contentType = response.headers.get('content-type') || '';
-      if (!contentType.includes('text/html') && !contentType.includes('text/plain')) {
-        return null;
-      }
-
-      const html = await response.text();
-    
-    // Extract metadata
-    let title = "";
-    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-    if (titleMatch) title = titleMatch[1].trim();
-    
-    let favicon = "";
-    const iconMatch = html.match(/<link[^>]*rel=["'](?:shortcut )?icon["'][^>]*href=["']([^"']+)["'][^>]*>/i) ||
-                    html.match(/<link[^>]*href=["']([^"']+)["'][^>]*rel=["'](?:shortcut )?icon["'][^>]*>/i) ||
-                    html.match(/<link[^>]*rel=["']apple-touch-icon["'][^>]*href=["']([^"']+)["'][^>]*>/i) ||
-                    html.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["'][^>]*>/i);
-    
-    if (iconMatch) {
-      favicon = iconMatch[1];
-      if (favicon && !favicon.startsWith('http')) {
-        favicon = new URL(favicon, url).href;
-      }
-    } else {
-      // Fallback to standard /favicon.ico
-      favicon = `${parsedUrl.origin}/favicon.ico`;
+      const ct = response.headers.get('content-type') || '';
+      if (!ct.includes('text/html') && !ct.includes('text/plain')) return null;
+      return await response.text();
+    } catch (err) {
+      clearTimeout(timeout);
+      console.log(`[Fetch] Failed: ${url} — ${err instanceof Error ? err.message : err}`);
+      return null;
     }
+  };
 
-    // Clean text for AI
-    const content = html.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gmi, "")
-               .replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gmi, "")
-               .replace(/<[^>]+>/g, ' ')
-               .replace(/\s+/g, ' ')
-               .trim()
-               .substring(0, 15000);
+  let parsedUrl: URL;
+  try { parsedUrl = new URL(inputUrl); } catch { return null; }
+  if (inputUrl.length > 2048) return null;
+  if (!['http:', 'https:'].includes(parsedUrl.protocol)) return null;
 
-    return { content, title, favicon };
-  } catch (error) {
-    console.error("Fetch Error:", error);
+  const hostname = parsedUrl.hostname.toLowerCase();
+  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0' || hostname === '[::1]' || hostname === '[::]' || hostname.match(/^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|0\.|169\.254\.|fc|fd)/) || hostname.endsWith('.local') || hostname.endsWith('.internal') || hostname.match(/^0x[0-9a-f]+$/i) || hostname.match(/^0[0-7]+$/)) {
+    console.log(`[Fetch] Blocked private host: ${hostname}`);
     return null;
   }
+
+  // Try the URL directly, then common ToS/Privacy paths
+  const urlsToTry = [inputUrl];
+  if (!inputUrl.toLowerCase().includes('terms') && !inputUrl.toLowerCase().includes('privacy') && !inputUrl.toLowerCase().includes('policy') && !inputUrl.toLowerCase().includes('legal') && !inputUrl.toLowerCase().includes('tos')) {
+    urlsToTry.push(
+      `${parsedUrl.origin}/terms`,
+      `${parsedUrl.origin}/terms-of-service`,
+      `${parsedUrl.origin}/tos`,
+      `${parsedUrl.origin}/privacy`,
+      `${parsedUrl.origin}/privacy-policy`,
+      `${parsedUrl.origin}/legal/terms`,
+      `${parsedUrl.origin}/legal/privacy`,
+    );
+  }
+
+  for (const url of urlsToTry) {
+    for (const ua of USER_AGENTS) {
+      const html = await tryFetch(url, ua);
+      if (!html || html.length < 500) continue;
+
+      console.log(`[Fetch] Got ${html.length} chars from ${url}`);
+
+      let title = "";
+      const tm = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+      if (tm) title = tm[1].trim();
+
+      let favicon = "";
+      const im = html.match(/<link[^>]*rel=["'](?:shortcut )?icon["'][^>]*href=["']([^"']+)["'][^>]*>/i) || html.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["'][^>]*>/i);
+      if (im) { favicon = im[1]; if (favicon && !favicon.startsWith('http')) favicon = new URL(favicon, parsedUrl.origin).href; }
+      else favicon = `${parsedUrl.origin}/favicon.ico`;
+
+      const content = html.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gmi, "")
+        .replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gmi, "")
+        .replace(/<noscript\b[^>]*>([\s\S]*?)<\/noscript>/gmi, "")
+        .replace(/<nav\b[^>]*>([\s\S]*?)<\/nav>/gmi, "")
+        .replace(/<footer\b[^>]*>([\s\S]*?)<\/footer>/gmi, "")
+        .replace(/<header\b[^>]*>([\s\S]*?)<\/header>/gmi, "")
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&#?\w+;/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .substring(0, 30000);
+
+      // Check if content looks like a policy (contains common legal terms)
+      const isLikelyPolicy = content.toLowerCase().includes('terms of') || content.toLowerCase().includes('privacy policy') || content.toLowerCase().includes('terms and conditions') || content.toLowerCase().includes('user agreement') || content.toLowerCase().includes('data collection');
+
+      if (isLikelyPolicy || urlsToTry.length === 1) {
+        console.log(`[Fetch] Using content from ${url} (${content.length} chars, likelyPolicy: ${isLikelyPolicy})`);
+        return { content, title, favicon };
+      }
+      console.log(`[Fetch] ${url} didn't look like a policy page, trying next...`);
+    }
+  }
+
+  console.log(`[Fetch] No policy content found for ${inputUrl}`);
+  return null;
 }
 
 async function startServer() {
