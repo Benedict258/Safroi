@@ -314,7 +314,7 @@ JSON schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"st
         const prompt = BASE_PROMPT + `\nCONTRACT TEXT:\n${value}`;
         const raw = await analyzeText(prompt);
         const parsed = JSON.parse(extractJSON(raw));
-        const risks = (parsed.risks || []).map((r: any) => ({ title: r.clause || r.title, description: r.risk || r.description, severity: r.severity || 'medium', plain_explanation: r.plain_explanation, impact_line: r.impact_line, category_tag: r.category_tag }));
+        const risks = (parsed.risks || []).map((r: any) => ({ title: r.clause || r.title, description: r.risk || r.description, severity: (r.severity || "medium").toLowerCase() || 'medium', plain_explanation: r.plain_explanation, impact_line: r.impact_line, category_tag: r.category_tag }));
         res.json({ id: crypto.randomUUID(), timestamp: Date.now(), type: 'contract', title: title || "Contract Analysis", risk_score: parsed.risk_score || 1, summary: parsed.summary, key_points: parsed.key_points, risks, original_text: value });
       }
     } catch (error) {
@@ -366,7 +366,7 @@ JSON schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"st
 
       const parsed = JSON.parse(extractJSON(raw));
       const risks = (parsed.risks || []).map((r: any) => ({
-        title: r.clause, description: r.risk, severity: r.severity || 'medium',
+        title: r.clause, description: r.risk, severity: (r.severity || "medium").toLowerCase() || 'medium',
         plain_explanation: r.plain_explanation, impact_line: r.impact_line, category_tag: r.category_tag,
       }));
 

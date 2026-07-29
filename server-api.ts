@@ -120,7 +120,7 @@ async function startServer() {
   // Gemma 4 Analysis
   const BASE_PROMPT = `You are a contract detective protecting gig workers and tenants from exploitative clauses. Return ONLY valid JSON, no markdown, no backticks.
 For each risky clause: "description" (legal/technical), "severity" (low|medium|high), "plain_explanation" (everyday language), "impact_line" (one-sentence consequence), "category_tag" (e.g. "Termination Risk").
-Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string","description":"string","severity":"string","plain_explanation":"string","impact_line":"string","category_tag":"string"}]}`;
+Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string","description":"string","severity":"low|medium|high" (must be lowercase),"plain_explanation":"string","impact_line":"string","category_tag":"string"}]}`;
 
   app.post("/api/analyze", async (req, res) => {
     try {
@@ -142,7 +142,7 @@ Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string"
       } else {
         const raw = await analyzeText(BASE_PROMPT + `\nCONTRACT TEXT:\n${value}`);
         const parsed = JSON.parse(extractJSON(raw));
-        const risks = (parsed.risks || []).map((r: any) => ({ title: r.clause || r.title, description: r.risk || r.description, severity: r.severity || 'medium', plain_explanation: r.plain_explanation, impact_line: r.impact_line, category_tag: r.category_tag }));
+        const risks = (parsed.risks || []).map((r: any) => ({ title: r.clause || r.title, description: r.risk || r.description, severity: (r.severity || "medium").toLowerCase() || 'medium', plain_explanation: r.plain_explanation, impact_line: r.impact_line, category_tag: r.category_tag }));
         res.json({ id: crypto.randomUUID(), timestamp: Date.now(), type: 'contract', title: title || "Contract Analysis", risk_score: parsed.risk_score || 1, summary: parsed.summary, key_points: parsed.key_points, risks, original_text: value });
       }
     } catch (err) { res.status(500).json({ error: err instanceof Error ? err.message : "Analysis failed." }); }
@@ -171,7 +171,7 @@ Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string"
         raw = await analyzeText(`Analyze contract. Return ONLY valid JSON with summary, risk_score, risks[].\nCONTRACT TEXT:\n${ocr.text}`);
       }
       const parsed = JSON.parse(extractJSON(raw));
-      const risks = (parsed.risks || []).map((r: any) => ({ title: r.clause, description: r.risk, severity: r.severity || 'medium', plain_explanation: r.plain_explanation, impact_line: r.impact_line, category_tag: r.category_tag }));
+      const risks = (parsed.risks || []).map((r: any) => ({ title: r.clause, description: r.risk, severity: (r.severity || "medium").toLowerCase() || 'medium', plain_explanation: r.plain_explanation, impact_line: r.impact_line, category_tag: r.category_tag }));
       res.json({ id: crypto.randomUUID(), timestamp: Date.now(), type: 'contract', title: "Scanned Document", summary: parsed.summary, risk_score: parsed.risk_score || 1, risks, path: useDirectImage ? 'multimodal' : 'ocr' });
     } catch (err) { res.status(500).json({ error: err instanceof Error ? err.message : "OCR failed." }); }
   });
