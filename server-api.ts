@@ -10,6 +10,7 @@ import path from "path";
 import AdmZip from "adm-zip";
 import { connectDB } from "./src/db/index";
 import { User, Analysis } from "./src/db/models";
+import { ocrImage, highlightImage } from "./src/ocr/index";
 
 const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
 const PORT = Number(process.env.PORT) || 8080;
@@ -129,7 +130,7 @@ async function startServer() {
   const app = express();
 
   app.use(cors({ origin: (_, cb) => cb(null, true), credentials: true, methods: ['GET','POST','PUT','DELETE','OPTIONS'], allowedHeaders: ['Content-Type','Authorization'] }));
-  app.use(express.json());
+  app.use(express.json({ limit: '10mb' }));
 
   app.get("/api/health", (_, res) => res.json({ status: "ok", service: "Safroi API", env: { hasGroqKey: !!process.env.GROQ_API_KEY, hasSerperKey: !!process.env.SERPER_API_KEY, nodeEnv: process.env.NODE_ENV } }));
   app.get("/api/ping", (_, res) => res.send("pong"));
@@ -253,6 +254,23 @@ async function startServer() {
       const cc = await ai.chat.completions.create({ messages: [{ role: "user", content: `Translate to ${targetLanguage}. Return only translation. TEXT: ${text}` }], model });
       res.json({ translatedText: cc.choices[0].message.content?.trim() || text });
     } catch { res.status(500).json({ error: "Translation failed." }); }
+  });
+
+  app.post("/api/ocr-analyze", async (req, res) => {
+    try {
+      const { image } = req.body;
+      if (!image) return res.status(400).json({ error: "Image (base64) required." });
+      const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
+      const imageBuffer = Buffer.from(base64Data, 'base64');
+      const ocrResult = await ocrImage(imageBuffer);
+      const ai = getAI();
+      const model = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
+      const prompt = `You are a contract detective protecting gig workers and tenants. Analyze this employment contract or lease. Return JSON with summary, risk_score, risks[{clause,risk,severity,plain_explanation,impact_line,category_tag}]. TEXT: ${ocrResult.text}`;
+      const cc = await ai.chat.completions.create({ messages: [{ role: "user", content: prompt }], model, response_format: { type: "json_object" }, temperature: 0.1 });
+      const parsed = JSON.parse(cc.choices[0].message.content || "{}");
+      const risks = (parsed.risks || []).map((r: any) => ({ title: r.clause, description: r.risk, severity: r.severity, plain_explanation: r.plain_explanation, impact_line: r.impact_line, category_tag: r.category_tag }));
+      res.json({ id: crypto.randomUUID(), timestamp: Date.now(), type: 'contract', title: "Scanned Document", summary: parsed.summary, risk_score: parsed.risk_score || 1, risks, original_text: ocrResult.text });
+    } catch (err) { res.status(500).json({ error: err instanceof Error ? err.message : "OCR failed." }); }
   });
 
   // History

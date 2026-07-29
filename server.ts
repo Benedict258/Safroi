@@ -11,6 +11,7 @@ import fs from "fs";
 import cors from "cors";
 import { connectDB } from "./src/db/index";
 import { User, Analysis } from "./src/db/models";
+import { ocrImage, highlightImage } from "./src/ocr/index";
 
 const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
 
@@ -203,7 +204,7 @@ async function startServer() {
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
   }));
-  app.use(express.json());
+  app.use(express.json({ limit: '10mb' }));
 
   // Logging middleware for API requests
   app.use("/api", (req, res, next) => {
@@ -528,7 +529,63 @@ Also provide:
     }
   });
 
-  // History API (PostgreSQL-backed)
+  // OCR + Analysis endpoint for photo/contract uploads
+  app.post("/api/ocr-analyze", async (req, res) => {
+    try {
+      const { image } = req.body;
+      if (!image) return res.status(400).json({ error: "Image (base64) required." });
+
+      const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
+      const imageBuffer = Buffer.from(base64Data, 'base64');
+
+      console.log(`[OCR] Processing image (${(imageBuffer.length / 1024).toFixed(1)} KB)...`);
+      const ocrResult = await ocrImage(imageBuffer);
+      console.log(`[OCR] Extracted ${ocrResult.text.length} chars, ${ocrResult.words.length} words.`);
+
+      const ai = getAI();
+      const model = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
+      const prompt = `You are a contract detective protecting gig workers and tenants. Analyze this employment contract or lease. For EACH risky clause, produce TWO explanations — legal and plain-language. Also provide impact_line and category_tag.
+
+CONTRACT TEXT (extracted via OCR):
+${ocrResult.text}
+
+Return valid JSON: {"summary":"string","risk_score":number(1-10),"risks":[{"clause":"string","risk":"string","severity":"low|medium|high","plain_explanation":"string","impact_line":"string","category_tag":"string"}]}`;
+
+      const cc = await ai.chat.completions.create({
+        messages: [{ role: "user", content: prompt }],
+        model, response_format: { type: "json_object" }, temperature: 0.1
+      });
+
+      const parsed = JSON.parse(cc.choices[0].message.content || "{}");
+      const risks = (parsed.risks || []).map((r: any) => ({
+        title: r.clause, description: r.risk, severity: r.severity,
+        plain_explanation: r.plain_explanation, impact_line: r.impact_line, category_tag: r.category_tag,
+      }));
+
+      // Highlight the image
+      const clausesForHighlight = risks.map((r: { title: string; severity: string }) => ({ text: r.title, severity: r.severity }));
+      const { matchCount } = await highlightImage(imageBuffer, ocrResult.words, clausesForHighlight as any);
+
+      // Return analysis + OCR text (highlighted image can be generated on demand)
+      res.json({
+        id: crypto.randomUUID(),
+        timestamp: Date.now(),
+        type: 'contract',
+        title: "Scanned Document",
+        summary: parsed.summary,
+        risk_score: parsed.risk_score || 1,
+        risks,
+        original_text: ocrResult.text,
+        ocr_confidence: ocrResult.words.length > 0 ? Math.round(ocrResult.words.reduce((s: number, w: { confidence: number }) => s + w.confidence, 0) / ocrResult.words.length) : 0,
+        highlighted_words: matchCount,
+      });
+    } catch (err) {
+      console.error("[OCR] Error:", err);
+      res.status(500).json({ error: err instanceof Error ? err.message : "OCR/Analysis failed." });
+    }
+  });
+
+  // History API (MongoDB-backed)
   app.post("/api/history", async (req, res) => {
     try {
       const { userId, analysis } = req.body;

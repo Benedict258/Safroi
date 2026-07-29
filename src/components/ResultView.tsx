@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { AnalysisResult, Risk } from '../types';
-import { AlertTriangle, Info, CheckCircle2, Globe, FileText, ChevronRight, Languages } from 'lucide-react';
+import { AnalysisResult, Risk, ViewMode } from '../types';
+import { AlertTriangle, Info, CheckCircle2, Globe, FileText, ChevronRight, Languages, Eye, BookOpen, Tag, Camera } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { translateText } from '../services/groq';
 import { motion, AnimatePresence } from 'motion/react';
@@ -13,6 +13,7 @@ export function ResultView({ result }: ResultViewProps) {
   const [isTranslating, setIsTranslating] = useState(false);
   const [translatedSummary, setTranslatedSummary] = useState<string | null>(null);
   const [targetLang, setTargetLang] = useState('Spanish');
+  const [viewMode, setViewMode] = useState<ViewMode>('plain');
 
   const handleTranslate = async () => {
     if (translatedSummary) {
@@ -121,10 +122,26 @@ export function ResultView({ result }: ResultViewProps) {
         </p>
       </div>
 
-      {/* Risks Grid */}
+      {/* View Mode Toggle + Risks Grid */}
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-4">
+        <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">Flagged Clauses</h2>
+        <div className="flex items-center gap-2 bg-[#121923] p-1 rounded-xl border border-white/10">
+          <button onClick={() => setViewMode('legal')} className={cn("flex items-center gap-2 px-4 py-2 rounded-lg text-xs md:text-sm font-bold transition-all", viewMode === 'legal' ? "bg-white/10 text-white" : "text-white/40 hover:text-white")}>
+            <BookOpen className="h-4 w-4" /> Legal View
+          </button>
+          <button onClick={() => setViewMode('plain')} className={cn("flex items-center gap-2 px-4 py-2 rounded-lg text-xs md:text-sm font-bold transition-all", viewMode === 'plain' ? "bg-mint text-[#050B10]" : "text-white/40 hover:text-white")}>
+            <Eye className="h-4 w-4" /> Plain View
+          </button>
+        </div>
+      </div>
+      {result.highlightedImageUrl && (
+        <div className="mb-6 rounded-2xl overflow-hidden border border-white/10">
+          <img src={result.highlightedImageUrl} alt="Highlighted contract" className="w-full" />
+        </div>
+      )}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
         {result.risks.map((risk, index) => (
-          <RiskCard key={index} risk={risk} index={index} />
+          <RiskCard key={index} risk={risk} index={index} viewMode={viewMode} />
         ))}
       </div>
 
@@ -151,9 +168,10 @@ export function ResultView({ result }: ResultViewProps) {
 interface RiskCardProps {
   risk: Risk;
   index: number;
+  viewMode: ViewMode;
 }
 
-const RiskCard: React.FC<RiskCardProps> = ({ risk, index }) => {
+const RiskCard: React.FC<RiskCardProps> = ({ risk, index, viewMode }) => {
   const gradientClass = 
     risk.severity === 'low' ? 'risk-gradient-low' : 
     risk.severity === 'medium' ? 'risk-gradient-medium' : 
@@ -166,30 +184,45 @@ const RiskCard: React.FC<RiskCardProps> = ({ risk, index }) => {
 
   const Icon = risk.severity === 'high' ? AlertTriangle : risk.severity === 'medium' ? Info : CheckCircle2;
 
+  const explanation = viewMode === 'plain' && risk.plain_explanation ? risk.plain_explanation : risk.description;
+
   return (
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.1 * index }}
-      className={cn("p-6 md:p-10 h-full rounded-2xl border border-white/10 flex flex-col gap-4 md:gap-6 transition-all sm:hover:scale-[1.05] hover:shadow-2xl relative overflow-hidden bg-[#0B1219] group", gradientClass)}
+      className={cn("p-6 md:p-8 h-full rounded-2xl border border-white/10 flex flex-col gap-3 md:gap-4 transition-all sm:hover:scale-[1.03] hover:shadow-2xl relative overflow-hidden bg-[#0B1219] group", gradientClass)}
     >
       <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-      <div className="flex items-center justify-between relative z-10">
-        <div className={cn("p-3 md:p-4 rounded-xl bg-[#050B10] border border-white/10 shadow-lg", iconColor)}>
-          <Icon className="h-6 w-6 md:h-7 md:w-7" />
+      <div className="flex items-center justify-between relative z-10 flex-wrap gap-2">
+        <div className={cn("p-2 md:p-3 rounded-xl bg-[#050B10] border border-white/10 shadow-lg", iconColor)}>
+          <Icon className="h-5 w-5 md:h-6 md:w-6" />
         </div>
-        <span className={cn("text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] px-3 py-1 md:px-4 md:py-1.5 rounded-full border border-current", iconColor)}>
+        {risk.category_tag && (
+          <span className="text-[9px] md:text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded-md bg-white/5 border border-white/10 text-white/50">
+            <Tag className="h-3 w-3 inline mr-1" />{risk.category_tag}
+          </span>
+        )}
+        <span className={cn("text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] px-2 py-1 rounded-full border border-current", iconColor)}>
           {risk.severity} Risk
         </span>
       </div>
       <div className="relative z-10">
-        <h3 className="text-lg md:text-2xl font-extrabold leading-tight mb-2 md:mb-3 text-white">{risk.title}</h3>
-        <p className="text-white/50 text-sm md:text-base leading-relaxed font-medium">{risk.description}</p>
+        <h3 className="text-lg md:text-xl font-extrabold leading-tight mb-2 text-white">{risk.title}</h3>
+        <p className="text-white/40 text-xs md:text-xs font-bold uppercase tracking-widest mb-2">
+          {viewMode === 'plain' ? 'PLAIN LANGUAGE' : 'LEGAL EXPLANATION'}
+        </p>
+        <p className="text-white/60 text-sm md:text-base leading-relaxed font-medium">{explanation}</p>
       </div>
+      {risk.impact_line && (
+        <div className="mt-2 p-3 rounded-lg bg-mint/5 border border-mint/10 relative z-10">
+          <p className="text-mint text-sm md:text-base font-bold italic leading-snug">"{risk.impact_line}"</p>
+        </div>
+      )}
       {risk.clause && (
-        <div className="mt-auto pt-4 md:pt-6 border-t border-white/5 relative z-10 text-pretty">
-          <span className="text-[9px] md:text-[10px] font-bold uppercase tracking-widest text-white/20 block mb-2 md:mb-3">Original Clause</span>
-          <div className="p-3 md:p-4 rounded-lg bg-black/40 border border-white/5">
+        <div className="mt-auto pt-4 border-t border-white/5 relative z-10 text-pretty">
+          <span className="text-[9px] md:text-[10px] font-bold uppercase tracking-widest text-white/20 block mb-2">Original Clause</span>
+          <div className="p-3 rounded-lg bg-black/40 border border-white/5">
             <p className="text-[10px] md:text-xs font-mono italic text-white/40 line-clamp-3 md:line-clamp-4 leading-relaxed">"{risk.clause}"</p>
           </div>
         </div>
