@@ -30,6 +30,8 @@ function authMiddleware(req: express.Request, res: express.Response, next: expre
 }
 
 function extractJSON(text: string): string {
+  const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fence) return fence[1].trim();
   const match = text.match(/\{[\s\S]*\}/);
   return match ? match[0] : text;
 }
@@ -136,12 +138,22 @@ Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string"
           prompt = BASE_PROMPT + `\nURL: ${value}\nSearch results:\n${searchResult}\n\nAnalyze from search results.`;
         }
         const raw = await analyzeText(prompt);
-        const parsed = JSON.parse(extractJSON(raw));
+        console.log(`[Gemma] Raw response (${raw.length} chars):`, raw.slice(0, 200));
+        const json = extractJSON(raw);
+        console.log(`[Gemma] Extracted JSON:`, json.slice(0, 200));
+        const parsed = JSON.parse(json);
+        parsed.risk_score = Math.round(Number(parsed.risk_score) || 1);
+        if (parsed.risk_score < 1) parsed.risk_score = 1;
+        if (parsed.risk_score > 10) parsed.risk_score = 10;
         let hn = value; try { hn = new URL(value).hostname; } catch {}
         res.json({ id: crypto.randomUUID(), timestamp: Date.now(), type: 'website', title: title || fr?.title || hn, url: value, ...parsed });
       } else {
         const raw = await analyzeText(BASE_PROMPT + `\nCONTRACT TEXT:\n${value}`);
-        const parsed = JSON.parse(extractJSON(raw));
+        const json = extractJSON(raw);
+        const parsed = JSON.parse(json);
+        parsed.risk_score = Math.round(Number(parsed.risk_score) || 1);
+        if (parsed.risk_score < 1) parsed.risk_score = 1;
+        if (parsed.risk_score > 10) parsed.risk_score = 10;
         const risks = (parsed.risks || []).map((r: any) => ({ title: r.clause || r.title, description: r.risk || r.description, severity: (r.severity || "medium").toLowerCase() || 'medium', plain_explanation: r.plain_explanation, impact_line: r.impact_line, category_tag: r.category_tag }));
         res.json({ id: crypto.randomUUID(), timestamp: Date.now(), type: 'contract', title: title || "Contract Analysis", risk_score: parsed.risk_score || 1, summary: parsed.summary, key_points: parsed.key_points, risks, original_text: value });
       }
