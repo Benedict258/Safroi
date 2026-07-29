@@ -1,10 +1,15 @@
 export type Severity = 'low' | 'medium' | 'high';
 
+export type ViewMode = 'legal' | 'plain';
+
 export interface Risk {
   title: string;
   description: string;
   severity: Severity;
   clause?: string;
+  plain_explanation?: string;
+  impact_line?: string;
+  category_tag?: string;
 }
 
 export interface AnalysisResult {
@@ -18,6 +23,7 @@ export interface AnalysisResult {
   risks: Risk[];
   key_points?: string[];
   original_text?: string;
+  highlightedImageUrl?: string;
 }
 
 export interface HistoryItem {

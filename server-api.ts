@@ -219,8 +219,8 @@ async function startServer() {
       if (type === 'website') {
         const fr = await fetchWebsiteContent(value);
         const content = fr?.content;
-        const sp = `You are a legal risk analyzer expert. Simplify Terms of Service and identify risks. ${content ? "" : "Use googleSearch tool if needed."} Return JSON.`;
-        const up = `URL: ${value} ${content ? `CONTENT: ${content}` : "Use googleSearch tool."} Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string","description":"string","severity":"low|medium|high"}]}`;
+        const sp = `You are a contract detective protecting gig workers and tenants from exploitative clauses. For EACH risky clause, produce TWO explanations: (1) "description" — legal/technical, (2) "plain_explanation" — everyday language for someone with no legal literacy. Also provide "impact_line" (one-sentence real-world consequence) and "category_tag" (e.g. "Termination Risk"). ${content ? "" : "Use googleSearch tool if needed."} Return JSON.`;
+        const up = `URL: ${value} ${content ? `CONTENT: ${content}` : "Use googleSearch tool."} Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string","description":"string","severity":"low|medium|high","plain_explanation":"string","impact_line":"string","category_tag":"string"}]}`;
         let cc;
         if (content) {
           cc = await ai.chat.completions.create({ messages: [{ role: "system", content: sp }, { role: "user", content: up }], model, response_format: { type: "json_object" }, temperature: 0.1 });
@@ -236,9 +236,9 @@ async function startServer() {
         let hn = value; try { hn = new URL(value).hostname; } catch {}
         res.json({ id: crypto.randomUUID(), timestamp: Date.now(), type: 'website', title: title || fr?.title || hn, url: value, favicon: req.body.favicon || fr?.favicon || "", ...parsed });
       } else {
-        const cc = await ai.chat.completions.create({ messages: [{ role: "system", content: "You are a legal risk analyzer. Return JSON." }, { role: "user", content: `CONTRACT: ${value} Schema: {"summary":"string","risk_score":number(1-10),"key_points":["string"],"risks":[{"clause":"string","risk":"string","severity":"low|medium|high"}]}` }], model, response_format: { type: "json_object" }, temperature: 0.1 });
+        const cc = await ai.chat.completions.create({ messages: [{ role: "system", content: "You are a contract detective protecting gig workers and tenants. For each risky clause, produce TWO explanations — legal and plain-language. Also provide impact_line and category_tag. Return JSON." }, { role: "user", content: `CONTRACT: ${value} Schema: {"summary":"string","risk_score":number(1-10),"key_points":["string"],"risks":[{"clause":"string","risk":"string","severity":"low|medium|high","plain_explanation":"string","impact_line":"string","category_tag":"string"}]}` }], model, response_format: { type: "json_object" }, temperature: 0.1 });
         const parsed = JSON.parse(cc.choices[0].message.content || "{}");
-        const risks = (parsed.risks || []).map((r: any) => ({ title: r.clause || r.title, description: r.risk || r.description, severity: r.severity }));
+        const risks = (parsed.risks || []).map((r: any) => ({ title: r.clause || r.title, description: r.risk || r.description, severity: r.severity, plain_explanation: r.plain_explanation, impact_line: r.impact_line, category_tag: r.category_tag }));
         res.json({ id: crypto.randomUUID(), timestamp: Date.now(), type: 'contract', title: title || "Contract Analysis", risk_score: parsed.risk_score || 1, summary: parsed.summary, key_points: parsed.key_points, risks, original_text: value });
       }
     } catch (err) { res.status(500).json({ error: err instanceof Error ? err.message : "Analysis failed." }); }

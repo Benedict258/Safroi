@@ -323,11 +323,17 @@ async function startServer() {
         const fetchedTitle = fetchRest?.title;
         const fetchedFavicon = fetchRest?.favicon;
 
-        const systemPrompt = `You are a legal risk analyzer expert. 
-        Your goal is to simplify complex Terms of Service or Privacy Policies and identify potential risks for everyday users.
-        ${content ? "" : "You have access to a tool called 'googleSearch' to find latest policy information if the provided content is insufficient."}
-        DO NOT invent or use any other tools. 
-        Return the final result as a JSON object directly following the requested schema.`;
+        const systemPrompt = `You are a contract detective protecting gig workers and tenants from exploitative clauses. Read the document. Identify every risky or dangerous clause. For EACH clause, produce TWO explanations:
+
+1. "description" — the legal/technical explanation of what the clause means.
+2. "plain_explanation" — explain the same clause in everyday language, targeting someone with no legal literacy. Write it so a gig worker or tenant understands exactly what this means for them.
+
+Also provide:
+- "impact_line" — one short, concrete sentence showing the real-world consequence. E.g. "This could mean you're let go with no notice and no final pay." Make it specific to the actual clause.
+- "category_tag" — a short label like "Termination Risk", "Wage Deduction", "Unpaid Overtime", "Eviction Risk", "Deposit Forfeiture".
+
+${content ? "" : "You have access to a tool called 'googleSearch' to find latest policy information if the provided content is insufficient."}
+DO NOT invent or use any other tools. Return the final result as a JSON object directly following the requested schema.`;
 
         const userPrompt = `Analyze the following website Terms of Service or Privacy Policy. 
         URL: ${value}
@@ -337,7 +343,7 @@ async function startServer() {
         {
           "summary": "string",
           "risk_score": number (1-10),
-          "risks": [{"title": "string", "description": "string", "severity": "low"|"medium"|"high"}]
+          "risks": [{"title": "string", "description": "string", "severity": "low"|"medium"|"high", "plain_explanation": "string", "impact_line": "string", "category_tag": "string"}]
         }`;
 
         let chatCompletion;
@@ -437,9 +443,14 @@ async function startServer() {
         });
       } else {
         // Contract analysis
-        const systemPrompt = `You are a legal risk analyzer expert. 
-        Analyze the contract text and highlight risky or important clauses.
-        Provide clear, simplified explanations for a layperson.`;
+        const systemPrompt = `You are a contract detective protecting gig workers and tenants from exploitative clauses. Analyze the contract text. For EACH risky clause, produce TWO explanations:
+
+1. "risk" — the legal/technical explanation of what the clause means.
+2. "plain_explanation" — explain the same clause in everyday language, targeting someone with no legal literacy. Write it so a gig worker or tenant understands exactly what this means for them.
+
+Also provide:
+- "impact_line" — one short, concrete sentence showing the real-world consequence. E.g. "This could mean you're let go with no notice and no final pay."
+- "category_tag" — a short label like "Termination Risk", "Wage Deduction", "Unpaid Overtime".`;
 
         const userPrompt = `CONTRACT TEXT:
         ${value}
@@ -449,7 +460,7 @@ async function startServer() {
           "summary": "string",
           "risk_score": number (1-10),
           "key_points": ["string"],
-          "risks": [{"clause": "string", "risk": "string", "severity": "low"|"medium"|"high"}]
+          "risks": [{"clause": "string", "risk": "string", "severity": "low"|"medium"|"high", "plain_explanation": "string", "impact_line": "string", "category_tag": "string"}]
         }`;
 
         const chatCompletion = await ai.chat.completions.create({
@@ -463,10 +474,13 @@ async function startServer() {
         });
 
         const parsed = JSON.parse(chatCompletion.choices[0].message.content || "{}");
-        const risks = (parsed.risks || []).map((r: { clause: string; risk: string; severity: string }) => ({
+        const risks = (parsed.risks || []).map((r: { clause: string; risk: string; severity: string; plain_explanation?: string; impact_line?: string; category_tag?: string }) => ({
           title: r.clause,
           description: r.risk,
-          severity: r.severity
+          severity: r.severity,
+          plain_explanation: r.plain_explanation,
+          impact_line: r.impact_line,
+          category_tag: r.category_tag,
         }));
 
         res.json({
