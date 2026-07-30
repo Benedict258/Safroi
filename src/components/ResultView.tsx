@@ -24,19 +24,19 @@ export function ResultView({ result }: ResultViewProps) {
     }
     setIsTranslating(true);
     try {
-      const MARKER = '<<<SPLIT>>>';
+      const MARKER = '\n<<<SPLIT_MARKER_DO_NOT_TRANSLATE_THIS>>>\n';
       const texts: string[] = [result.summary];
       result.risks.forEach(r => {
         texts.push(r.title);
         texts.push(r.plain_explanation || r.description);
         if (r.impact_line) texts.push(r.impact_line);
       });
-      const combined = texts.join(`\n${MARKER}\n`);
+      const combined = texts.join(MARKER);
       const translated = await translateText(
-        `Translate each section separated by "${MARKER}" into ${targetLang}. Keep the "${MARKER}" markers exactly as they are between sections. Do NOT translate the markers.\n\n${combined}`,
+        `Translate the following text into ${targetLang}. There are sections separated by the marker "<<<SPLIT_MARKER_DO_NOT_TRANSLATE_THIS>>>". You MUST preserve these markers exactly — do not translate, modify, or remove them. Only translate the text between the markers.\n\n${combined}`,
         targetLang
       );
-      const parts = translated.split(MARKER).map((p: string) => p.trim());
+      const parts = translated.split('<<<SPLIT_MARKER_DO_NOT_TRANSLATE_THIS>>>').map((p: string) => p.trim());
 
       if (parts.length < 2) {
         console.warn('[Translate] Marker lost — displaying original text');
