@@ -385,15 +385,7 @@ async function startServer() {
       const cached = await getCached(ck);
       if (cached && cached.cachedResult) { console.log(`[Cache] HIT`); return res.json(cached.cachedResult); }
 
-      const BASE_PROMPT = `You are a contract detective protecting gig workers and tenants from exploitative clauses. Return ONLY valid JSON, no markdown, no backticks.
-
-For EACH risky clause, produce TWO explanations:
-- "description": legal/technical explanation
-- "plain_explanation": everyday language for someone with no legal literacy
-- "impact_line": one-sentence real-world consequence (e.g. "This could mean you're let go with no notice and no final pay.")
-- "category_tag": short label like "Termination Risk", "Wage Deduction", "Unpaid Overtime", "Eviction Risk"
-
-JSON schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string","description":"string","severity":"low|medium|high","plain_explanation":"string","impact_line":"string","category_tag":"string"}${type === 'contract' ? `${','}"key_points":["string"]` : ''}]}`;
+      const BASE_PROMPT = `You are an impartial contract analyst. Analyze the document honestly — flag real risks where they exist, note where clauses are fair, standard, or protective. Focus on pay, hours, termination, liability, privacy, dispute resolution. For each clause: "description" (legal), "severity" (low|medium|high — only high when genuinely dangerous), "plain_explanation" (everyday language), "impact_line" (one-sentence consequence), "category_tag" (e.g. "Termination Risk"). Also provide "actions": 2-4 recommended steps ("title","advice","urgency"). Return ONLY valid JSON, no markdown, no backticks. Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string","description":"string","severity":"low|medium|high","plain_explanation":"string","impact_line":"string","category_tag":"string"}],"actions":[{"title":"string","advice":"string","urgency":"string"}]}`;
 
       if (type === 'website') {
         const fetchRest = await fetchWebsiteContent(value);
@@ -427,7 +419,7 @@ JSON schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"st
         if (parsed.risk_score < 1) parsed.risk_score = 1;
         if (parsed.risk_score > 10) parsed.risk_score = 10;
         const risks = (parsed.risks || []).map((r: any) => ({ title: r.clause || r.title, description: r.risk || r.description, severity: (r.severity || "medium").toLowerCase() || 'medium', plain_explanation: r.plain_explanation, impact_line: r.impact_line, category_tag: r.category_tag }));
-        const result = { id: crypto.randomUUID(), timestamp: Date.now(), type: 'contract' as const, title: title || "Contract Analysis", risk_score: parsed.risk_score || 1, summary: parsed.summary, key_points: parsed.key_points, risks, original_text: value };
+        const result = { id: crypto.randomUUID(), timestamp: Date.now(), type: 'contract' as const, title: title || "Contract Analysis", risk_score: parsed.risk_score || 1, summary: parsed.summary, key_points: parsed.key_points, risks, actions: parsed.actions, original_text: value };
         setCache(ck, result);
         res.json(result);
       }

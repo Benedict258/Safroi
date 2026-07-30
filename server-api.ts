@@ -158,9 +158,7 @@ async function startServer() {
   });
 
   // Gemma 4 Analysis
-  const BASE_PROMPT = `You are a contract detective protecting gig workers and tenants from exploitative clauses. Return ONLY valid JSON, no markdown, no backticks.
-For each risky clause: "description" (legal/technical), "severity" (low|medium|high), "plain_explanation" (everyday language), "impact_line" (one-sentence consequence), "category_tag" (e.g. "Termination Risk").
-Also provide "actions": an array of recommended steps. Each with "title" (short), "advice" (actionable advice), "urgency" (low|medium|high). Give 2-4 actions.
+  const BASE_PROMPT = `You are an impartial contract analyst. Analyze the document honestly — flag real risks where they exist, and note where clauses are fair, standard, or protective. Do not assume every clause is exploitative. Focus on what matters to workers and tenants: pay, hours, termination, liability, privacy, dispute resolution. For each clause: "description" (legal), "severity" (low|medium|high — only use high when genuinely dangerous), "plain_explanation" (everyday language), "impact_line" (one-sentence consequence), "category_tag" (e.g. "Termination Risk"). Also provide "actions": 2-4 recommended steps. Each with "title", "advice", "urgency" (low|medium|high). Return ONLY valid JSON, no markdown, no backticks.
 Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string","description":"string","severity":"string","plain_explanation":"string","impact_line":"string","category_tag":"string"}],"actions":[{"title":"string","advice":"string","urgency":"string"}]}`;
 
   function cacheKey(type: string, value: string) {
@@ -221,7 +219,7 @@ Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string"
         if (parsed.risk_score < 1) parsed.risk_score = 1;
         if (parsed.risk_score > 10) parsed.risk_score = 10;
         const risks = (parsed.risks || []).map((r: any) => ({ title: r.clause || r.title, description: r.risk || r.description, severity: (r.severity || "medium").toLowerCase() || 'medium', plain_explanation: r.plain_explanation, impact_line: r.impact_line, category_tag: r.category_tag }));
-        const result = { id: crypto.randomUUID(), timestamp: Date.now(), type: 'contract' as const, title: title || "Contract Analysis", risk_score: parsed.risk_score || 1, summary: parsed.summary, key_points: parsed.key_points, risks, original_text: value };
+        const result = { id: crypto.randomUUID(), timestamp: Date.now(), type: 'contract' as const, title: title || "Contract Analysis", risk_score: parsed.risk_score || 1, summary: parsed.summary, key_points: parsed.key_points, risks, actions: parsed.actions, original_text: value };
         setCache(ck, result);
         res.json(result);
       }
