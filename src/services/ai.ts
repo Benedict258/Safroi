@@ -77,7 +77,7 @@ export async function translateText(text: string, targetLanguage: string): Promi
         role: "user",
         parts: [{ text: `Translate the following text into ${targetLanguage}. Return ONLY the translation, nothing else. TEXT:\n\n${text}` }],
       }],
-      config: { temperature: 0.1, maxOutputTokens: 4096 },
+      config: { temperature: 0.1, maxOutputTokens: 8192 },
     });
     return res.text?.trim() || text;
   } catch {

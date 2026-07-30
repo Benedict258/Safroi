@@ -24,17 +24,28 @@ export function ResultView({ result }: ResultViewProps) {
     }
     setIsTranslating(true);
     try {
-      const translated = await translateText(result.summary, targetLang);
-      setTranslatedSummary(translated);
+      // Batch all texts: summary + all risk explanations + impact lines
+      const texts: string[] = [result.summary];
+      result.risks.forEach(r => {
+        texts.push(r.plain_explanation || r.description);
+        if (r.impact_line) texts.push(r.impact_line);
+      });
+      const separator = '\n---SEPARATOR---\n';
+      const combined = texts.join(separator);
+      const translated = await translateText(combined, targetLang);
+      const parts = translated.split(separator);
 
+      setTranslatedSummary(parts[0]?.trim() || result.summary);
+
+      let idx = 1;
       const riskTranslations: Record<number, { explanation: string; impact: string }> = {};
-      for (let i = 0; i < result.risks.length; i++) {
-        const risk = result.risks[i];
-        const text = risk.plain_explanation || risk.description;
-        const exp = await translateText(text, targetLang);
-        const imp = risk.impact_line ? await translateText(risk.impact_line, targetLang) : '';
-        riskTranslations[i] = { explanation: exp, impact: imp };
-      }
+      result.risks.forEach((r, i) => {
+        riskTranslations[i] = {
+          explanation: parts[idx]?.trim() || (r.plain_explanation || r.description),
+          impact: r.impact_line ? (parts[idx + 1]?.trim() || r.impact_line) : '',
+        };
+        idx += r.impact_line ? 2 : 1;
+      });
       setTranslatedRisks(riskTranslations);
     } catch (error) {
       console.error(error);
