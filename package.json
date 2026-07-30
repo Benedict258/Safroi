@@ -27,6 +27,7 @@
     "clsx": "^2.1.1",
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",
+    "edge-tts": "^1.0.1",
     "esbuild": "^0.28.0",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.3",

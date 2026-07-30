@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
-import { AnalysisResult, Risk, ViewMode } from '../types';
-import { AlertTriangle, Info, CheckCircle2, Globe, FileText, ChevronRight, Languages, Eye, BookOpen, Tag, Camera } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { AnalysisResult, Risk, ViewMode, Action } from '../types';
+import { AlertTriangle, Info, CheckCircle2, Globe, FileText, ChevronRight, Languages, Eye, BookOpen, Tag, Camera, Volume2, Loader2, ShieldCheck } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { translateText } from '../services/groq';
+import { translateText, speakText } from '../services/groq';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface ResultViewProps {
@@ -15,6 +15,20 @@ export function ResultView({ result }: ResultViewProps) {
   const [targetLang, setTargetLang] = useState('Hausa');
   const [viewMode, setViewMode] = useState<ViewMode>('plain');
   const [translatedRisks, setTranslatedRisks] = useState<Record<number, { explanation: string; impact: string; title: string }> | null>(null);
+  const [speakingSection, setSpeakingSection] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const handleSpeak = async (section: string, text: string) => {
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+    if (speakingSection === section) { setSpeakingSection(null); return; }
+    setSpeakingSection(section);
+    try {
+      const audio = await speakText(text, targetLang);
+      audioRef.current = audio;
+      audio.play();
+      audio.onended = () => setSpeakingSection(null);
+    } catch { setSpeakingSection(null); }
+  };
 
   const handleTranslate = async () => {
     if (translatedSummary) {
@@ -129,7 +143,9 @@ export function ResultView({ result }: ResultViewProps) {
         <div className="absolute top-0 right-0 w-64 h-64 bg-accent-blue/5 blur-[100px] rounded-full pointer-events-none"></div>
         <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-6 mb-8 md:mb-10">
           <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">Quick Summary</h2>
-          <div className="flex items-center gap-2 bg-[#121923] p-1 rounded-xl border border-white/10">
+          <div className="flex items-center gap-2">
+            <button onClick={() => handleSpeak('summary', translatedSummary || result.summary)} className={`p-1.5 rounded-lg transition-all ${speakingSection === 'summary' ? 'bg-mint text-[#050B10]' : 'bg-white/5 text-white/40 hover:bg-white/10 hover:text-white'}`} title="Read aloud">{speakingSection === 'summary' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-4 w-4" />}</button>
+            <div className="flex items-center gap-2 bg-[#121923] p-1 rounded-xl border border-white/10">
              <select 
                value={targetLang || 'Hausa'}
                onChange={(e) => setTargetLang(e.target.value)}
@@ -150,7 +166,8 @@ export function ResultView({ result }: ResultViewProps) {
              >
                <Languages className="h-3.5 w-3.5 md:h-4 md:w-4" />
                {isTranslating ? '...' : translatedSummary ? 'Original' : `Translate`}
-             </button>
+              </button>
+          </div>
           </div>
         </div>
         
@@ -181,6 +198,28 @@ export function ResultView({ result }: ResultViewProps) {
           <RiskCard key={index} risk={risk} index={index} viewMode={viewMode} translated={translatedRisks?.[index]} />
         ))}
       </div>
+
+      {/* Recommended Actions */}
+      {result.actions && result.actions.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <ShieldCheck className="h-6 w-6 text-mint" />
+            <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">Recommended Actions</h2>
+            <button onClick={() => handleSpeak('actions', result.actions!.map(a => `${a.title}. ${a.advice}`).join('. '))} className={`p-1.5 rounded-lg transition-all ${speakingSection === 'actions' ? 'bg-mint text-[#050B10]' : 'bg-white/5 text-white/40 hover:bg-white/10 hover:text-white'}`} title="Read aloud">{speakingSection === 'actions' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-4 w-4" />}</button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+            {result.actions.map((action, i) => (
+              <div key={i} className="p-5 rounded-2xl border border-mint/20 bg-mint/5 flex flex-col gap-3">
+                <div className="flex items-center gap-2">
+                  <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full border ${action.urgency === 'high' ? 'text-risk-high border-risk-high/30' : action.urgency === 'medium' ? 'text-risk-medium border-risk-medium/30' : 'text-risk-low border-risk-low/30'}`}>{action.urgency} priority</span>
+                </div>
+                <h3 className="text-base md:text-lg font-extrabold text-white">{action.title}</h3>
+                <p className="text-sm text-white/60 leading-relaxed">{action.advice}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Key Points - if available */}
       {result.key_points && (

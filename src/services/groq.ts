@@ -47,3 +47,17 @@ export async function translateText(text: string, targetLanguage: string): Promi
   const data = await response.json();
   return data.translatedText;
 }
+
+export async function speakText(text: string, language: string): Promise<HTMLAudioElement> {
+  const response = await fetch(`${BASE_URL}/api/speak`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text, language })
+  });
+  if (!response.ok) throw new Error("TTS failed");
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const audio = new Audio(url);
+  audio.onended = () => URL.revokeObjectURL(url);
+  return audio;
+}

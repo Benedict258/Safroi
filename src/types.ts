@@ -1,3 +1,9 @@
+export interface Action {
+  title: string;
+  advice: string;
+  urgency: 'low' | 'medium' | 'high';
+}
+
 export type Severity = 'low' | 'medium' | 'high';
 
 export type ViewMode = 'legal' | 'plain';
@@ -21,6 +27,7 @@ export interface AnalysisResult {
   summary: string;
   risk_score: number;
   risks: Risk[];
+  actions?: Action[];
   key_points?: string[];
   original_text?: string;
   highlightedImageUrl?: string;

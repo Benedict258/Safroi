@@ -160,7 +160,8 @@ async function startServer() {
   // Gemma 4 Analysis
   const BASE_PROMPT = `You are a contract detective protecting gig workers and tenants from exploitative clauses. Return ONLY valid JSON, no markdown, no backticks.
 For each risky clause: "description" (legal/technical), "severity" (low|medium|high), "plain_explanation" (everyday language), "impact_line" (one-sentence consequence), "category_tag" (e.g. "Termination Risk").
-Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string","description":"string","severity":"string","plain_explanation":"string","impact_line":"string","category_tag":"string"}]}`;
+Also provide "actions": an array of recommended steps. Each with "title" (short), "advice" (actionable advice), "urgency" (low|medium|high). Give 2-4 actions.
+Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string","description":"string","severity":"string","plain_explanation":"string","impact_line":"string","category_tag":"string"}],"actions":[{"title":"string","advice":"string","urgency":"string"}]}`;
 
   function cacheKey(type: string, value: string) {
     return `${type}:${value.toLowerCase().trim().slice(0, 200)}`;
@@ -235,13 +236,36 @@ Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string"
     } catch { res.status(500).json({ error: "Translation failed." }); }
   });
 
+  // TTS — Google Translate free TTS (no API key needed)
+  const LANG_MAP: Record<string, string> = { English: 'en', Hausa: 'ha', Yoruba: 'en', Igbo: 'en', French: 'fr', German: 'de', Japanese: 'ja' };
+  app.post("/api/speak", async (req, res) => {
+    try {
+      const { text, language } = req.body;
+      if (!text || !language) return res.status(400).json({ error: "Text and language required." });
+      const langCode = LANG_MAP[language] || 'en';
+      const chunks = text.match(/[\s\S]{1,180}/g) || [text];
+      const audioBuffers: Buffer[] = [];
+      for (const chunk of chunks.slice(0, 5)) {
+        const url = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${langCode}&q=${encodeURIComponent(chunk)}`;
+        const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+        if (!response.ok) continue;
+        const buffer = Buffer.from(await response.arrayBuffer());
+        if (buffer.length > 500) audioBuffers.push(buffer);
+      }
+      if (audioBuffers.length === 0) return res.status(500).json({ error: "TTS failed for " + language });
+      res.set({ 'Content-Type': 'audio/mpeg', 'Content-Length': audioBuffers.reduce((s, b) => s + b.length, 0).toString() });
+      for (const buf of audioBuffers) res.write(buf);
+      res.end();
+    } catch { res.status(500).json({ error: "TTS failed." }); }
+  });
+
   app.post("/api/ocr-analyze", async (req, res) => {
     try {
       const { image, useDirectImage } = req.body;
       if (!image) return res.status(400).json({ error: "Image required." });
       const base64 = image.replace(/^data:image\/\w+;base64,/, '');
       const mime = image.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
-      const prompt = `You are a contract detective protecting gig workers and tenants. Analyze this contract photo. Return ONLY valid JSON (no markdown): {"summary":"string","risk_score":number(1-10),"risks":[{"clause":"string","risk":"string","severity":"low|medium|high","plain_explanation":"string","impact_line":"string","category_tag":"string"}]}`;
+      const prompt = `You are a contract detective protecting gig workers and tenants. Analyze this contract photo. Return ONLY valid JSON (no markdown): {"summary":"string","risk_score":number(1-10),"risks":[{"clause":"string","risk":"string","severity":"low|medium|high","plain_explanation":"string","impact_line":"string","category_tag":"string"}],"actions":[{"title":"string","advice":"string","urgency":"string"}]}`;
       let raw: string;
       if (useDirectImage) {
         raw = await analyzeImage(base64, mime, prompt);

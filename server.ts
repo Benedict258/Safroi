@@ -450,6 +450,28 @@ JSON schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"st
     }
   });
 
+  // TTS voice narration
+  const LANG_MAP: Record<string, string> = { English: 'en', Hausa: 'ha', Yoruba: 'en', Igbo: 'en', French: 'fr', German: 'de', Japanese: 'ja' };
+  app.post("/api/speak", async (req, res) => {
+    try {
+      const { text, language } = req.body;
+      if (!text || !language) return res.status(400).json({ error: "Text and language required." });
+      const langCode = LANG_MAP[language] || 'en';
+      const chunks = text.match(/[\s\S]{1,180}/g) || [text];
+      const audioBuffers: Buffer[] = [];
+      for (const chunk of chunks.slice(0, 5)) {
+        const r = await fetch(`https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${langCode}&q=${encodeURIComponent(chunk)}`, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+        if (!r.ok) continue;
+        const buf = Buffer.from(await r.arrayBuffer());
+        if (buf.length > 500) audioBuffers.push(buf);
+      }
+      if (audioBuffers.length === 0) return res.status(500).json({ error: "TTS failed." });
+      res.set({ 'Content-Type': 'audio/mpeg' });
+      for (const buf of audioBuffers) res.write(buf);
+      res.end();
+    } catch { res.status(500).json({ error: "TTS failed." }); }
+  });
+
   // OCR + Analysis endpoint for photo/contract uploads
   app.post("/api/ocr-analyze", async (req, res) => {
     try {
@@ -463,7 +485,7 @@ JSON schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"st
       console.log(`[OCR] Processing image (${(imageBuffer.length / 1024).toFixed(1)} KB)...`);
 
       const prompt = `You are a contract detective protecting gig workers and tenants. Analyze this employment contract or lease photograph. Return ONLY valid JSON (no markdown, no backticks) with:
-{"summary":"string","risk_score":number(1-10),"risks":[{"clause":"string","risk":"string","severity":"low|medium|high","plain_explanation":"string","impact_line":"string","category_tag":"string"}]}`;
+{"summary":"string","risk_score":number(1-10),"risks":[{"clause":"string","risk":"string","severity":"low|medium|high","plain_explanation":"string","impact_line":"string","category_tag":"string"}],"actions":[{"title":"string","advice":"string","urgency":"string"}]}`;
 
       let raw: string;
       let pathUsed = 'ocr';
