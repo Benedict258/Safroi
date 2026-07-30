@@ -24,19 +24,29 @@ export function ResultView({ result }: ResultViewProps) {
     }
     setIsTranslating(true);
     try {
-      // Batch all: summary + risk titles + explanations + impact lines
+      const MARKER = '<<<SPLIT>>>';
       const texts: string[] = [result.summary];
       result.risks.forEach(r => {
         texts.push(r.title);
         texts.push(r.plain_explanation || r.description);
         if (r.impact_line) texts.push(r.impact_line);
       });
-      const separator = '\n---SEPARATOR---\n';
-      const combined = texts.join(separator);
-      const translated = await translateText(combined, targetLang);
-      const parts = translated.split(separator);
+      const combined = texts.join(`\n${MARKER}\n`);
+      const translated = await translateText(
+        `Translate each section separated by "${MARKER}" into ${targetLang}. Keep the "${MARKER}" markers exactly as they are between sections. Do NOT translate the markers.\n\n${combined}`,
+        targetLang
+      );
+      const parts = translated.split(MARKER).map((p: string) => p.trim());
 
-      setTranslatedSummary(parts[0]?.trim() || result.summary);
+      if (parts.length < 2) {
+        console.warn('[Translate] Marker lost — displaying original text');
+        setTranslatedSummary(translated.trim() || result.summary);
+        setTranslatedRisks(null);
+        setIsTranslating(false);
+        return;
+      }
+
+      setTranslatedSummary(parts[0] || result.summary);
 
       let idx = 1;
       const riskTranslations: Record<number, { explanation: string; impact: string; title: string }> = {};
