@@ -29,11 +29,18 @@ function authMiddleware(req: express.Request, res: express.Response, next: expre
   } catch { res.status(401).json({ error: "Invalid token" }); }
 }
 
+function safeParseJSON(text: string) { try { return JSON.parse(text); } catch (e) { console.error("[JSON Parse Error]", e instanceof Error ? e.message : e, "\nRaw:", text.slice(0, 300)); return { summary: "Analysis completed. Raw response could not be parsed.", risk_score: 5, risks: [] }; } }
 function extractJSON(text: string): string {
-  const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (fence) return fence[1].trim();
+  const fences = text.match(/```(?:json)?\s*([\s\S]*?)```/g);
+  if (fences && fences.length > 0) {
+    const last = fences[fences.length - 1];
+    const inner = last.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (inner) return inner[1].trim();
+  }
   const match = text.match(/\{[\s\S]*\}/);
-  return match ? match[0] : text;
+  if (match) return match[0];
+  console.error('[extractJSON] No JSON found in:', text.slice(0, 500));
+  return '{}';
 }
 
 function validateEnv() {
@@ -172,7 +179,7 @@ Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string"
         console.log(`[Gemma] Raw response (${raw.length} chars):`, raw.slice(0, 200));
         const json = extractJSON(raw);
         console.log(`[Gemma] Extracted JSON:`, json.slice(0, 200));
-        const parsed = JSON.parse(json);
+        const parsed = safeParseJSON(json);
         parsed.risk_score = Math.round(Number(parsed.risk_score) || 1);
         if (parsed.risk_score < 1) parsed.risk_score = 1;
         if (parsed.risk_score > 10) parsed.risk_score = 10;
@@ -181,7 +188,7 @@ Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string"
       } else {
         const raw = await analyzeText(BASE_PROMPT + `\nCONTRACT TEXT:\n${value}`);
         const json = extractJSON(raw);
-        const parsed = JSON.parse(json);
+        const parsed = safeParseJSON(json);
         parsed.risk_score = Math.round(Number(parsed.risk_score) || 1);
         if (parsed.risk_score < 1) parsed.risk_score = 1;
         if (parsed.risk_score > 10) parsed.risk_score = 10;
@@ -213,7 +220,7 @@ Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string"
         const ocr = await ocrImage(Buffer.from(base64, 'base64'));
         raw = await analyzeText(`Analyze contract. Return ONLY valid JSON with summary, risk_score, risks[].\nCONTRACT TEXT:\n${ocr.text}`);
       }
-      const parsed = JSON.parse(extractJSON(raw));
+      const parsed = safeParseJSON(extractJSON(raw));
       const risks = (parsed.risks || []).map((r: any) => ({ title: r.clause, description: r.risk, severity: (r.severity || "medium").toLowerCase() || 'medium', plain_explanation: r.plain_explanation, impact_line: r.impact_line, category_tag: r.category_tag }));
       res.json({ id: crypto.randomUUID(), timestamp: Date.now(), type: 'contract', title: "Scanned Document", summary: parsed.summary, risk_score: parsed.risk_score || 1, risks, path: useDirectImage ? 'multimodal' : 'ocr' });
     } catch (err) { res.status(500).json({ error: err instanceof Error ? err.message : "OCR failed." }); }

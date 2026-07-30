@@ -23,9 +23,15 @@ export async function analyzeText(prompt: string): Promise<string> {
       const res = await ai.models.generateContent({
         model,
         contents: [{ role: "user", parts: [{ text: prompt }] }],
-        config: { temperature: 0.1, maxOutputTokens: 4096 },
+        config: { temperature: 0.1, maxOutputTokens: 8192 },
       });
-      return res.text || "";
+      const text = res.text || "";
+      if (!text || text.length < 20) {
+        console.warn(`[Gemini] ${model} returned empty/short text (${text.length} chars).`);
+        if (model === FALLBACK_MODEL) throw new Error("Empty response");
+        continue;
+      }
+      return text;
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
       if (model === FALLBACK_MODEL) throw lastError;
@@ -50,7 +56,7 @@ export async function analyzeImage(imageBase64: string, mimeType: string, prompt
             { inlineData: { mimeType, data: imageBase64 } },
           ],
         }],
-        config: { temperature: 0.1, maxOutputTokens: 4096 },
+        config: { temperature: 0.1, maxOutputTokens: 8192 },
       });
       return res.text || "";
     } catch (err) {
@@ -71,7 +77,7 @@ export async function translateText(text: string, targetLanguage: string): Promi
         role: "user",
         parts: [{ text: `Translate the following text into ${targetLanguage}. Return ONLY the translation, nothing else. TEXT:\n\n${text}` }],
       }],
-      config: { temperature: 0.1, maxOutputTokens: 2048 },
+      config: { temperature: 0.1, maxOutputTokens: 4096 },
     });
     return res.text?.trim() || text;
   } catch {

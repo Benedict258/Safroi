@@ -26,11 +26,18 @@ interface SearchResultItem {
   snippet: string;
 }
 
+function safeParseJSON(text: string) { try { return JSON.parse(text); } catch (e) { console.error("[JSON Parse Error]", e instanceof Error ? e.message : e, "\nRaw:", text.slice(0, 300)); return { summary: "Analysis completed. Raw response could not be parsed.", risk_score: 5, risks: [] }; } }
 function extractJSON(text: string): string {
-  const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (fence) return fence[1].trim();
+  const fences = text.match(/```(?:json)?\s*([\s\S]*?)```/g);
+  if (fences && fences.length > 0) {
+    const last = fences[fences.length - 1];
+    const inner = last.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (inner) return inner[1].trim();
+  }
   const match = text.match(/\{[\s\S]*\}/);
-  return match ? match[0] : text;
+  if (match) return match[0];
+  console.error('[extractJSON] No JSON found in:', text.slice(0, 500));
+  return '{}';
 }
 
 
@@ -393,7 +400,7 @@ JSON schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"st
         console.log(`[Gemma] Website raw (${raw.length} chars):`, raw.slice(0, 200));
         const json = extractJSON(raw);
         console.log(`[Gemma] Extracted JSON:`, json.slice(0, 200));
-        const parsed = JSON.parse(json);
+        const parsed = safeParseJSON(json);
         parsed.risk_score = Math.round(Number(parsed.risk_score || 5));
         if (parsed.risk_score < 1) parsed.risk_score = 1;
         if (parsed.risk_score > 10) parsed.risk_score = 10;
@@ -405,7 +412,7 @@ JSON schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"st
         console.log(`[Gemma] Contract raw (${raw.length} chars):`, raw.slice(0, 200));
         const json = extractJSON(raw);
         console.log(`[Gemma] Extracted JSON:`, json.slice(0, 200));
-        const parsed = JSON.parse(json);
+        const parsed = safeParseJSON(json);
         parsed.risk_score = Math.round(Number(parsed.risk_score || 5));
         if (parsed.risk_score < 1) parsed.risk_score = 1;
         if (parsed.risk_score > 10) parsed.risk_score = 10;
@@ -459,7 +466,7 @@ JSON schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"st
         raw = await analyzeText(`Analyze this employment contract or lease. Return ONLY valid JSON (no markdown, no backticks) with summary, risk_score, risks[{clause,risk,severity,plain_explanation,impact_line,category_tag}].\n\nCONTRACT TEXT:\n${ocrResult.text}`);
       }
 
-      const parsed = JSON.parse(extractJSON(raw));
+      const parsed = safeParseJSON(extractJSON(raw));
       const risks = (parsed.risks || []).map((r: any) => ({
         title: r.clause, description: r.risk, severity: (r.severity || "medium").toLowerCase() || 'medium',
         plain_explanation: r.plain_explanation, impact_line: r.impact_line, category_tag: r.category_tag,
