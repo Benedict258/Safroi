@@ -14,7 +14,7 @@ export function ResultView({ result }: ResultViewProps) {
   const [translatedSummary, setTranslatedSummary] = useState<string | null>(null);
   const [targetLang, setTargetLang] = useState('Hausa');
   const [viewMode, setViewMode] = useState<ViewMode>('plain');
-  const [translatedRisks, setTranslatedRisks] = useState<Record<number, { explanation: string; impact: string }> | null>(null);
+  const [translatedRisks, setTranslatedRisks] = useState<Record<number, { explanation: string; impact: string; title: string }> | null>(null);
 
   const handleTranslate = async () => {
     if (translatedSummary) {
@@ -24,9 +24,10 @@ export function ResultView({ result }: ResultViewProps) {
     }
     setIsTranslating(true);
     try {
-      // Batch all texts: summary + all risk explanations + impact lines
+      // Batch all: summary + risk titles + explanations + impact lines
       const texts: string[] = [result.summary];
       result.risks.forEach(r => {
+        texts.push(r.title);
         texts.push(r.plain_explanation || r.description);
         if (r.impact_line) texts.push(r.impact_line);
       });
@@ -38,13 +39,14 @@ export function ResultView({ result }: ResultViewProps) {
       setTranslatedSummary(parts[0]?.trim() || result.summary);
 
       let idx = 1;
-      const riskTranslations: Record<number, { explanation: string; impact: string }> = {};
+      const riskTranslations: Record<number, { explanation: string; impact: string; title: string }> = {};
       result.risks.forEach((r, i) => {
         riskTranslations[i] = {
-          explanation: parts[idx]?.trim() || (r.plain_explanation || r.description),
-          impact: r.impact_line ? (parts[idx + 1]?.trim() || r.impact_line) : '',
+          title: parts[idx]?.trim() || r.title,
+          explanation: parts[idx + 1]?.trim() || (r.plain_explanation || r.description),
+          impact: r.impact_line ? (parts[idx + 2]?.trim() || r.impact_line) : '',
         };
-        idx += r.impact_line ? 2 : 1;
+        idx += r.impact_line ? 3 : 2;
       });
       setTranslatedRisks(riskTranslations);
     } catch (error) {
@@ -194,7 +196,7 @@ interface RiskCardProps {
   risk: Risk;
   index: number;
   viewMode: ViewMode;
-  translated?: { explanation: string; impact: string } | null;
+  translated?: { explanation: string; impact: string; title: string } | null;
 }
 
 const RiskCard: React.FC<RiskCardProps> = ({ risk, index, viewMode, translated }) => {
@@ -234,7 +236,7 @@ const RiskCard: React.FC<RiskCardProps> = ({ risk, index, viewMode, translated }
         </span>
       </div>
       <div className="relative z-10">
-        <h3 className="text-lg md:text-xl font-extrabold leading-tight mb-2 text-white">{risk.title}</h3>
+        <h3 className="text-lg md:text-xl font-extrabold leading-tight mb-2 text-white">{translated?.title || risk.title}</h3>
         <p className="text-white/40 text-xs md:text-xs font-bold uppercase tracking-widest mb-2">
           {viewMode === 'plain' ? 'PLAIN LANGUAGE' : 'LEGAL EXPLANATION'}
         </p>
