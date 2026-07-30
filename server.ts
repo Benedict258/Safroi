@@ -162,34 +162,34 @@ async function fetchWebsiteContent(inputUrl: string) {
         const allPolicyUrls = [...new Set([...policyLinks, ...hrefPolicyLinks])];
         console.log(`[Fetch] Total policy URLs discovered: ${allPolicyUrls.length}`);
 
-        // Fetch all discovered policy pages and combine text
-        let combinedContent = '';
-        let discoveredTitle = '';
-        for (const policyUrl of allPolicyUrls.slice(0, 5)) { // max 5 policy pages
+        // Fetch all discovered policy pages in parallel
+        const policyUrls = allPolicyUrls.slice(0, 5);
+        const results = await Promise.all(policyUrls.map(async (policyUrl) => {
           const policyHtml = await tryFetch(policyUrl, USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)]);
-          if (policyHtml && policyHtml.length > 300) {
-            const cleaned = policyHtml
-              .replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gmi, '')
-              .replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gmi, '')
-              .replace(/<nav\b[^>]*>([\s\S]*?)<\/nav>/gmi, '')
-              .replace(/<footer\b[^>]*>([\s\S]*?)<\/footer>/gmi, '')
-              .replace(/<header\b[^>]*>([\s\S]*?)<\/header>/gmi, '')
-              .replace(/<[^>]+>/g, ' ')
-              .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&#?\w+;/g, ' ')
-              .replace(/\s+/g, ' ').trim();
-            combinedContent += `\n--- PAGE: ${policyUrl} ---\n${cleaned}`;
-            if (!discoveredTitle) {
-              const tm = policyHtml.match(/<title[^>]*>([^<]+)<\/title>/i);
-              if (tm) discoveredTitle = tm[1].trim();
-            }
-            console.log(`[Fetch] Added ${cleaned.length} chars from ${policyUrl}`);
-          }
-        }
+          if (!policyHtml || policyHtml.length <= 300) return null;
+          const cleaned = policyHtml
+            .replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gmi, '')
+            .replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gmi, '')
+            .replace(/<nav\b[^>]*>([\s\S]*?)<\/nav>/gmi, '')
+            .replace(/<footer\b[^>]*>([\s\S]*?)<\/footer>/gmi, '')
+            .replace(/<header\b[^>]*>([\s\S]*?)<\/header>/gmi, '')
+            .replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&#?\w+;/g, ' ')
+            .replace(/\s+/g, ' ').trim();
+          let pageTitle = '';
+          const tm = policyHtml.match(/<title[^>]*>([^<]+)<\/title>/i);
+          if (tm) pageTitle = tm[1].trim();
+          console.log(`[Fetch] ${policyUrl}: ${cleaned.length} chars`);
+          return { url: policyUrl, text: cleaned, title: pageTitle };
+        }));
+        const valid = results.filter(Boolean) as NonNullable<typeof results[number]>[];
+        const combinedContent = valid.map(r => `\n--- PAGE: ${r.url} ---\n${r.text}`).join('');
+        const discoveredTitle = valid[0]?.title || '';
+        console.log(`[Fetch] Parallel: ${valid.length}/${policyUrls.length} pages fetched, ${combinedContent.length} chars total`);
 
         if (combinedContent.length > 500) {
           const finalContent = combinedContent.substring(0, 30000);
           const favicon = `${parsedUrl.origin}/favicon.ico`;
-          console.log(`[Fetch] Agentic: returning ${finalContent.length} chars from ${allPolicyUrls.length} policy pages`);
+          console.log(`[Fetch] Agentic: returning ${finalContent.length} chars from ${valid.length} policy pages`);
           return { content: finalContent, title: discoveredTitle || parsedUrl.hostname, favicon };
         }
       }
@@ -371,11 +371,19 @@ async function startServer() {
   });
 
   // Gemma 4 AI Analysis
+  function cacheKey(type: string, value: string) { return `${type}:${value.toLowerCase().trim().slice(0, 200)}`; }
+  function getCached(key: string) { return (Analysis as any).findOne({ _id: `cache_${key}`, cacheExpiry: { $gt: new Date() } }); }
+  function setCache(key: string, data: any) { (Analysis as any).findOneAndUpdate({ _id: `cache_${key}` }, { _id: `cache_${key}`, type: 'cache', userId: 'system', title: 'Cached', summary: '', risk_score: 0, risks: [], cachedResult: data, cacheExpiry: new Date(Date.now() + 86400000) }, { upsert: true, returnDocument: 'after' }); }
+
   app.post("/api/analyze", async (req, res) => {
     try {
       let { type, value, title, url } = req.body;
       if (url && !value) { value = url; type = 'website'; }
       if (!value) return res.status(400).json({ error: "Value is required" });
+
+      const ck = cacheKey(type, value);
+      const cached = await getCached(ck);
+      if (cached && cached.cachedResult) { console.log(`[Cache] HIT`); return res.json(cached.cachedResult); }
 
       const BASE_PROMPT = `You are a contract detective protecting gig workers and tenants from exploitative clauses. Return ONLY valid JSON, no markdown, no backticks.
 
@@ -405,7 +413,9 @@ JSON schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"st
         if (parsed.risk_score < 1) parsed.risk_score = 1;
         if (parsed.risk_score > 10) parsed.risk_score = 10;
         let hostname = value; try { hostname = new URL(value).hostname; } catch {}
-        res.json({ id: crypto.randomUUID(), timestamp: Date.now(), type: 'website', title: title || fetchRest?.title || hostname, url: value, favicon: req.body.favicon || fetchRest?.favicon || "", ...parsed });
+        const result = { id: crypto.randomUUID(), timestamp: Date.now(), type: 'website' as const, title: title || fetchRest?.title || hostname, url: value, favicon: req.body.favicon || fetchRest?.favicon || "", ...parsed };
+        setCache(ck, result);
+        res.json(result);
       } else {
         const prompt = BASE_PROMPT + `\nCONTRACT TEXT:\n${value}`;
         const raw = await analyzeText(prompt);
@@ -417,7 +427,9 @@ JSON schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"st
         if (parsed.risk_score < 1) parsed.risk_score = 1;
         if (parsed.risk_score > 10) parsed.risk_score = 10;
         const risks = (parsed.risks || []).map((r: any) => ({ title: r.clause || r.title, description: r.risk || r.description, severity: (r.severity || "medium").toLowerCase() || 'medium', plain_explanation: r.plain_explanation, impact_line: r.impact_line, category_tag: r.category_tag }));
-        res.json({ id: crypto.randomUUID(), timestamp: Date.now(), type: 'contract', title: title || "Contract Analysis", risk_score: parsed.risk_score || 1, summary: parsed.summary, key_points: parsed.key_points, risks, original_text: value });
+        const result = { id: crypto.randomUUID(), timestamp: Date.now(), type: 'contract' as const, title: title || "Contract Analysis", risk_score: parsed.risk_score || 1, summary: parsed.summary, key_points: parsed.key_points, risks, original_text: value };
+        setCache(ck, result);
+        res.json(result);
       }
     } catch (error) {
       console.error("AI Analysis Error:", error);
