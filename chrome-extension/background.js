@@ -1,5 +1,5 @@
 // Safroi Background Service Worker
-let BASE_URL = "http://localhost:3000"; // Fallback
+let BASE_URL = "https://safroi.onrender.com";
 let configPromise = null;
 
 function loadConfig() {
@@ -34,8 +34,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-// Throttle analysis to avoid hitting quotas too fast
-const domainCache = new Map();
 
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   await loadConfig();
@@ -96,12 +94,12 @@ async function resetIcon() {
     ctx.fillStyle = '#050B10';
     ctx.fill();
     
-    // Draw "C" Logo
-    ctx.fillStyle = '#E0FEF6'; // Mint
-    ctx.font = 'bold italic 22px "Arial", sans-serif';
+    // Draw "S" Logo
+    ctx.fillStyle = '#E0FEF6';
+    ctx.font = 'bold italic 24px "Arial", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('C', ICON_SIZE / 2, ICON_SIZE / 2 + 1);
+    ctx.fillText('S', ICON_SIZE / 2, ICON_SIZE / 2 + 1);
 
     const imageData = ctx.getImageData(0, 0, ICON_SIZE, ICON_SIZE);
     chrome.action.setIcon({ imageData: { 32: imageData } });
@@ -146,7 +144,7 @@ async function analyzeDomain(domain, fullUrl, favicon) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ url: fullUrl })
+      body: JSON.stringify({ type: 'website', value: fullUrl, url: fullUrl })
     });
 
     const contentType = response.headers.get('content-type');
@@ -162,7 +160,7 @@ async function analyzeDomain(domain, fullUrl, favicon) {
     data.timestamp = Date.now();
     data.domain = domain;
 
-    // Policy update tracking — compare with previous analysis
+    // Policy update tracking
     chrome.storage.local.get([`${domain}_previous`], (prev) => {
       const previous = prev[`${domain}_previous`];
       const newHash = hashString(data.summary || '' + JSON.stringify(data.risks || []));
@@ -170,16 +168,12 @@ async function analyzeDomain(domain, fullUrl, favicon) {
         data.policyUpdated = true;
         data.previousScore = previous.risk_score;
         data.previousTimestamp = previous.timestamp;
-        console.log(`[Update] ${domain} policy changed! Score: ${previous.risk_score} → ${data.risk_score}`);
       }
       chrome.storage.local.set({
         [domain]: data,
         [`${domain}_previous`]: { hash: newHash, risk_score: data.risk_score, timestamp: Date.now() }
       });
     });
-
-    // Store in chrome storage
-    chrome.storage.local.set({ [domain]: data });
     
     updateBadge(data.risk_score);
   } catch (error) {
@@ -202,12 +196,12 @@ async function updateBadge(score) {
     ctx.fillStyle = '#050B10';
     ctx.fill();
     
-    // Draw "C" Logo
-    ctx.fillStyle = '#E0FEF6'; // Mint
-    ctx.font = 'bold italic 22px "Arial", sans-serif';
+    // Draw "S" Logo
+    ctx.fillStyle = '#E0FEF6';
+    ctx.font = 'bold italic 24px "Arial", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('C', ICON_SIZE / 2, ICON_SIZE / 2 + 1);
+    ctx.fillText('S', ICON_SIZE / 2, ICON_SIZE / 2 + 1);
 
     // Determine dot color
     let color = '#CCCCCC'; // Default Gray

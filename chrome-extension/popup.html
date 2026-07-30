@@ -323,11 +323,16 @@
         <span class="severity" id="severityText">Scanning</span>
       </div>
       <div class="summary" id="summaryText"></div>
+      <button id="speakBtn" style="display:none;width:100%;background:transparent;border:1px solid var(--border);color:var(--muted);padding:6px;border-radius:8px;font-size:10px;font-weight:800;cursor:pointer;margin-bottom:16px;">Read Aloud</button>
       <div class="view-toggle" id="viewToggle" style="display:flex; gap:6px; margin-bottom:16px;">
         <button id="legalViewBtn" class="view-btn active">Legal View</button>
         <button id="plainViewBtn" class="view-btn">Plain View</button>
       </div>
       <div class="risk-list" id="riskList"></div>
+      <div id="actionsContainer" style="display:none; margin-top:12px;">
+        <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);margin-bottom:10px;">Recommended Actions</div>
+        <div id="actionsList"></div>
+      </div>
     </div>
     
     <button id="reanalyzeBtn" class="btn">Re-analyze Page</button>

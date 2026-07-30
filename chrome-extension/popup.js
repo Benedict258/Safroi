@@ -479,6 +479,24 @@ function displayResult(data) {
     scoreValue.textContent = `${data.risk_score}/10`;
     summaryText.textContent = data.summary;
 
+    // Speak button
+    const speakBtn = document.getElementById('speakBtn');
+    speakBtn.style.display = 'block';
+    speakBtn.onclick = async () => {
+      const btn = speakBtn;
+      btn.textContent = 'Loading...';
+      btn.disabled = true;
+      try {
+        const r = await fetch(`${BASE_URL}/api/speak`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: data.summary, language: 'English' }) });
+        if (!r.ok) throw new Error('Failed');
+        const blob = await r.blob();
+        const audio = new Audio(URL.createObjectURL(blob));
+        await audio.play();
+      } catch (_) {}
+      btn.textContent = 'Read Aloud';
+      btn.disabled = false;
+    };
+
     // Policy update notification
     if (data.policyUpdated) {
       const banner = document.createElement('div');
@@ -521,6 +539,7 @@ function displayResult(data) {
     plainBtn.onclick = () => { viewMode = 'plain'; updateView(); };
 
     renderRisks(data.risks || [], viewMode);
+    renderActions(data.actions);
 }
 
 function renderRisks(risks, viewMode) {
@@ -538,5 +557,23 @@ function renderRisks(risks, viewMode) {
             ${risk.impact_line ? `<div class="risk-impact">"${risk.impact_line}"</div>` : ''}
         `;
         riskList.appendChild(div);
+    });
+}
+
+function renderActions(actions) {
+    const container = document.getElementById('actionsContainer');
+    if (!actions || actions.length === 0) { container.style.display = 'none'; return; }
+    container.style.display = 'block';
+    const list = document.getElementById('actionsList');
+    list.innerHTML = '';
+    actions.forEach(a => {
+        const urgencyColors = { high: '#EF4444', medium: '#F59E0B', low: '#22C55E' };
+        list.innerHTML += `
+            <div class="risk-item" style="border-left: 3px solid ${urgencyColors[a.urgency] || '#666'}">
+                <div class="risk-title">${a.title}</div>
+                <span style="font-size:8px;font-weight:800;text-transform:uppercase;color:${urgencyColors[a.urgency]};margin-bottom:4px;display:block;">${a.urgency} priority</span>
+                <div class="risk-desc">${a.advice}</div>
+            </div>
+        `;
     });
 }

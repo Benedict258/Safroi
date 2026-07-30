@@ -1,5 +1,5 @@
 {
-  "BASE_URL": "https://safroi.suirify.com",
+  "BASE_URL": "https://safroi.onrender.com",
   "VERSION": "2.0.0",
-  "MODEL": "Safroi AI Engine"
+  "MODEL": "Gemma 4 — Safroi AI"
 }
