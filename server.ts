@@ -120,6 +120,75 @@ async function fetchWebsiteContent(inputUrl: string) {
     return null;
   }
 
+  // Agentic: crawl homepage for ToS/Privacy links before trying common paths
+  if (!inputUrl.toLowerCase().includes('terms') && !inputUrl.toLowerCase().includes('privacy') && !inputUrl.toLowerCase().includes('policy') && !inputUrl.toLowerCase().includes('legal') && !inputUrl.toLowerCase().includes('tos')) {
+    console.log(`[Fetch] Crawling homepage ${inputUrl} for policy links...`);
+    const homeHtml = await tryFetch(inputUrl, USER_AGENTS[0]);
+    if (homeHtml && homeHtml.length > 500) {
+      const linkPattern = /<a[^>]+href=["']([^"']+)["'][^>]*>([^<]*)<\/a>/gi;
+      let match;
+      const policyLinks: string[] = [];
+      while ((match = linkPattern.exec(homeHtml)) !== null) {
+        const href = match[1];
+        const text = match[2].toLowerCase();
+        if (text.includes('terms') || text.includes('privacy') || text.includes('policy') || text.includes('legal') || text.includes('tos') || text.includes('conditions')) {
+          try {
+            const fullUrl = href.startsWith('http') ? href : new URL(href, parsedUrl.origin).href;
+            if (!policyLinks.includes(fullUrl)) policyLinks.push(fullUrl);
+          } catch {}
+        }
+      }
+      if (policyLinks.length > 0) {
+        console.log(`[Fetch] Found ${policyLinks.length} policy links:`, policyLinks.slice(0, 5));
+        // Also check href attributes for common paths even if link text isn't explicit
+        const hrefPolicyLinks: string[] = [];
+        const allLinks = homeHtml.match(/href=["']([^"']*(?:terms|privacy|policy|legal|tos)[^"']*)["']/gi);
+        if (allLinks) {
+          for (const l of allLinks) {
+            const href = l.replace(/href=["']/i, '').replace(/["']$/, '');
+            try {
+              const fullUrl = href.startsWith('http') ? href : new URL(href, parsedUrl.origin).href;
+              if (!policyLinks.includes(fullUrl) && !hrefPolicyLinks.includes(fullUrl)) hrefPolicyLinks.push(fullUrl);
+            } catch {}
+          }
+        }
+        const allPolicyUrls = [...new Set([...policyLinks, ...hrefPolicyLinks])];
+        console.log(`[Fetch] Total policy URLs discovered: ${allPolicyUrls.length}`);
+
+        // Fetch all discovered policy pages and combine text
+        let combinedContent = '';
+        let discoveredTitle = '';
+        for (const policyUrl of allPolicyUrls.slice(0, 5)) { // max 5 policy pages
+          const policyHtml = await tryFetch(policyUrl, USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)]);
+          if (policyHtml && policyHtml.length > 300) {
+            const cleaned = policyHtml
+              .replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gmi, '')
+              .replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gmi, '')
+              .replace(/<nav\b[^>]*>([\s\S]*?)<\/nav>/gmi, '')
+              .replace(/<footer\b[^>]*>([\s\S]*?)<\/footer>/gmi, '')
+              .replace(/<header\b[^>]*>([\s\S]*?)<\/header>/gmi, '')
+              .replace(/<[^>]+>/g, ' ')
+              .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&#?\w+;/g, ' ')
+              .replace(/\s+/g, ' ').trim();
+            combinedContent += `\n--- PAGE: ${policyUrl} ---\n${cleaned}`;
+            if (!discoveredTitle) {
+              const tm = policyHtml.match(/<title[^>]*>([^<]+)<\/title>/i);
+              if (tm) discoveredTitle = tm[1].trim();
+            }
+            console.log(`[Fetch] Added ${cleaned.length} chars from ${policyUrl}`);
+          }
+        }
+
+        if (combinedContent.length > 500) {
+          const finalContent = combinedContent.substring(0, 30000);
+          const favicon = `${parsedUrl.origin}/favicon.ico`;
+          console.log(`[Fetch] Agentic: returning ${finalContent.length} chars from ${allPolicyUrls.length} policy pages`);
+          return { content: finalContent, title: discoveredTitle || parsedUrl.hostname, favicon };
+        }
+      }
+    }
+  }
+
   // Try the URL directly, then common ToS/Privacy paths
   const urlsToTry = [inputUrl];
   if (!inputUrl.toLowerCase().includes('terms') && !inputUrl.toLowerCase().includes('privacy') && !inputUrl.toLowerCase().includes('policy') && !inputUrl.toLowerCase().includes('legal') && !inputUrl.toLowerCase().includes('tos')) {

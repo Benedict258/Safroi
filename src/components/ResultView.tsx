@@ -14,17 +14,28 @@ export function ResultView({ result }: ResultViewProps) {
   const [translatedSummary, setTranslatedSummary] = useState<string | null>(null);
   const [targetLang, setTargetLang] = useState('Hausa');
   const [viewMode, setViewMode] = useState<ViewMode>('plain');
+  const [translatedRisks, setTranslatedRisks] = useState<Record<number, { explanation: string; impact: string }> | null>(null);
 
   const handleTranslate = async () => {
     if (translatedSummary) {
       setTranslatedSummary(null);
+      setTranslatedRisks(null);
       return;
     }
-    
     setIsTranslating(true);
     try {
       const translated = await translateText(result.summary, targetLang);
       setTranslatedSummary(translated);
+
+      const riskTranslations: Record<number, { explanation: string; impact: string }> = {};
+      for (let i = 0; i < result.risks.length; i++) {
+        const risk = result.risks[i];
+        const text = risk.plain_explanation || risk.description;
+        const exp = await translateText(text, targetLang);
+        const imp = risk.impact_line ? await translateText(risk.impact_line, targetLang) : '';
+        riskTranslations[i] = { explanation: exp, impact: imp };
+      }
+      setTranslatedRisks(riskTranslations);
     } catch (error) {
       console.error(error);
       alert("Translation failed");
@@ -144,7 +155,7 @@ export function ResultView({ result }: ResultViewProps) {
       )}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
         {result.risks.map((risk, index) => (
-          <RiskCard key={index} risk={risk} index={index} viewMode={viewMode} />
+          <RiskCard key={index} risk={risk} index={index} viewMode={viewMode} translated={translatedRisks?.[index]} />
         ))}
       </div>
 
@@ -172,9 +183,10 @@ interface RiskCardProps {
   risk: Risk;
   index: number;
   viewMode: ViewMode;
+  translated?: { explanation: string; impact: string } | null;
 }
 
-const RiskCard: React.FC<RiskCardProps> = ({ risk, index, viewMode }) => {
+const RiskCard: React.FC<RiskCardProps> = ({ risk, index, viewMode, translated }) => {
   const gradientClass = 
     risk.severity === 'low' ? 'risk-gradient-low' : 
     risk.severity === 'medium' ? 'risk-gradient-medium' : 
@@ -187,7 +199,7 @@ const RiskCard: React.FC<RiskCardProps> = ({ risk, index, viewMode }) => {
 
   const Icon = risk.severity === 'high' ? AlertTriangle : risk.severity === 'medium' ? Info : CheckCircle2;
 
-  const explanation = viewMode === 'plain' && risk.plain_explanation ? risk.plain_explanation : risk.description;
+  const explanation = translated ? translated.explanation : (viewMode === 'plain' && risk.plain_explanation ? risk.plain_explanation : risk.description);
 
   return (
     <motion.div 
@@ -217,9 +229,9 @@ const RiskCard: React.FC<RiskCardProps> = ({ risk, index, viewMode }) => {
         </p>
         <p className="text-white/60 text-sm md:text-base leading-relaxed font-medium">{explanation}</p>
       </div>
-      {risk.impact_line && (
+      {((risk.impact_line && !translated) || translated?.impact) && (
         <div className="mt-2 p-3 rounded-lg bg-mint/5 border border-mint/10 relative z-10">
-          <p className="text-mint text-sm md:text-base font-bold italic leading-snug">"{risk.impact_line}"</p>
+          <p className="text-mint text-sm md:text-base font-bold italic leading-snug">"{translated?.impact || risk.impact_line}"</p>
         </div>
       )}
       {risk.clause && (

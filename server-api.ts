@@ -72,15 +72,33 @@ async function fetchWebsiteContent(inputUrl: string) {
 
   const urls = [inputUrl];
   if (!inputUrl.includes('terms') && !inputUrl.includes('privacy') && !inputUrl.includes('policy')) {
+    // Agentic: crawl homepage for policy links
+    const homeHtml = await tryFetch(inputUrl);
+    if (homeHtml && homeHtml.length > 500) {
+      const linkMatches = homeHtml.match(/href=["']([^"']*(?:terms|privacy|policy|legal|tos)[^"']*)["']/gi);
+      if (linkMatches) {
+        for (const l of linkMatches) {
+          const href = l.replace(/href=["']/i, '').replace(/["']$/, '');
+          try { const fu = href.startsWith('http') ? href : new URL(href, pu.origin).href; if (!urls.includes(fu)) urls.push(fu); } catch {}
+        }
+      }
+    }
     urls.push(`${pu.origin}/terms`, `${pu.origin}/terms-of-service`, `${pu.origin}/privacy`, `${pu.origin}/privacy-policy`, `${pu.origin}/legal/terms`);
   }
-  for (const u of urls) {
+  let combinedContent = ''; let discoveredTitle = '';
+  const allUrls = [...new Set(urls)].slice(0, 8);
+  for (const u of allUrls) {
     const html = await tryFetch(u);
     if (!html || html.length < 300) continue;
     let title = ""; const tm = html.match(/<title[^>]*>([^<]+)<\/title>/i); if (tm) title = tm[1].trim();
-    const content = html.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gmi, "").replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gmi, "").replace(/<nav\b[^>]*>([\s\S]*?)<\/nav>/gmi, "").replace(/<footer\b[^>]*>([\s\S]*?)<\/footer>/gmi, "").replace(/<header\b[^>]*>([\s\S]*?)<\/header>/gmi, "").replace(/<[^>]+>/g, ' ').replace(/&[a-z]+;/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 30000);
-    console.log(`[Fetch] Got ${content.length} chars from ${u}`);
-    return { content, title };
+    const content = html.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gmi, "").replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gmi, "").replace(/<nav\b[^>]*>([\s\S]*?)<\/nav>/gmi, "").replace(/<footer\b[^>]*>([\s\S]*?)<\/footer>/gmi, "").replace(/<header\b[^>]*>([\s\S]*?)<\/header>/gmi, "").replace(/<[^>]+>/g, ' ').replace(/&[a-z]+;/g, ' ').replace(/\s+/g, ' ').trim();
+    combinedContent += `\n--- ${u} ---\n${content}`;
+    if (!discoveredTitle && title) discoveredTitle = title;
+    console.log(`[Fetch] Added ${content.length} chars from ${u}`);
+  }
+  if (combinedContent.length > 500) {
+    console.log(`[Fetch] Returning ${combinedContent.length} chars from ${allUrls.length} pages`);
+    return { content: combinedContent.substring(0, 30000), title: discoveredTitle };
   }
   console.log(`[Fetch] No content for ${inputUrl}`);
   return null;
