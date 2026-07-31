@@ -379,7 +379,7 @@ async function startServer() {
         const config = {
           BASE_URL: `${protocol}://${host}`,
           VERSION: "2.0.0",
-          MODEL: "Groq Llama-3"
+          MODEL: "Gemma 4 — Safroi AI"
         };
         
         zip.addFile("config.json", Buffer.from(JSON.stringify(config, null, 2)));
