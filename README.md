@@ -64,59 +64,51 @@ No fine-tuning, no RAG — reliability comes from **schema-constrained output**,
 
 ## Setup & Running Locally
 
-> Follow these steps exactly on a clean checkout before submitting — do not assume they work from memory.
+Three options — fastest first:
 
-### Prerequisites
-- Node.js 20+ (see `.nvmrc`, `.node-version`, `package.json` engines)
-- A MongoDB instance (local or hosted) for caching and auth
-- A Google AI Studio / Gemini API key (see below)
-
-### 1. Clone the repository
+### Option A — Pull & Run (Docker Hub, no build)
 ```bash
-git clone https://github.com/Benedict258/Safroi-roi.git
-cd Safroi-roi
+git clone https://github.com/Benedict258/Safroi-roi.git && cd Safroi-roi
+cp .env.example .env   # then edit .env — set GEMINI_API_KEY
+docker compose -f docker-compose.pull.yml up
 ```
+Pulls pre-built images from Docker Hub. Backend on `:8080`, frontend on `:3000`. MongoDB included.
 
-### 2. Install dependencies
+**Docker Hub images:** `benedict258/safroi-backend:latest` | `benedict258/safroi-frontend:latest`
+
+### Option B — Build Locally (Docker)
 ```bash
+git clone https://github.com/Benedict258/Safroi-roi.git && cd Safroi-roi
+cp .env.example .env   # then edit .env — set GEMINI_API_KEY and MONGODB_URI
+docker compose up
+```
+Builds both images from the Dockerfiles in this repo.
+
+### Option C — Manual (no Docker)
+```bash
+git clone https://github.com/Benedict258/Safroi-roi.git && cd Safroi-roi
 npm install
-```
-The project is a single-package monolith (no separate /backend and /frontend directories to install).
-
-### 3. Environment variables
-Create a `.env` file (see `.env.example`) with:
-```
-GEMINI_API_KEY=your_key_here
-MONGODB_URI=mongodb://localhost:27017/safroi
-PORT=3000
-```
-Generate a Gemini API key at [Google AI Studio](https://aistudio.google.com) — confirm the key is issued as a current **auth key**, not a legacy standard key. The SDK auto-detects both `GEMINI_API_KEY` and `GOOGLE_API_KEY` environment variables.
-
-Optionally set:
-```
-GEMINI_MODEL=gemma-4-26b-a4b-it   # default
-SERPER_API_KEY=                    # optional, for Google Search fallback
-JWT_SECRET=                        # auto-generated if not set
-```
-
-### 4. Run the dev server (backend + frontend together)
-```bash
+cp .env.example .env   # then edit .env
 npm run dev
 ```
-This starts a single Express server that serves both the API and the React frontend via Vite middleware.
+Requires Node.js 20+ and a running MongoDB instance. Backend + frontend served together on `http://localhost:3000`.
 
-Visit **http://localhost:3000**
+### Environment Variables
+Create a `.env` file (copy from `.env.example`) with:
+```
+GEMINI_API_KEY=your_key_here
+MONGODB_URI=mongodb://localhost:27017/safroi     # for Docker: mongodb://mongodb:27017/safroi
+PORT=3000
+```
+Generate a Gemini API key at [Google AI Studio](https://aistudio.google.com) — confirm the key is issued as a current **auth key**, not a legacy standard key.
 
-### 5. Load the browser extension
-1. Open Chrome and navigate to `chrome://extensions`
-2. Enable **Developer mode**
-3. Click **Load unpacked** and select the `chrome-extension/` directory
-4. The Safroi icon (canvas-drawn "S" letter) should appear in your extensions bar
+### Load the browser extension (all options)
+1. Open Chrome → `chrome://extensions` → Enable **Developer mode**
+2. Click **Load unpacked** → select the `chrome-extension/` directory
 
 ### Verify it's working
-- Open http://localhost:3000 — the landing page should load with the Safroi branding
-- Upload a test contract image or paste text and confirm risk analysis returns real, non-fallback output (risk score, flagged clauses, plain-language explanations, recommended actions)
-- Visit any website with the extension enabled and confirm the badge color updates within a few seconds
+- Upload a test contract and confirm real Gemma 4 analysis (risk score, flagged clauses, plain-language explanations, recommended actions)
+- Visit any website with the extension enabled and confirm the badge color updates
 
 ---
 
