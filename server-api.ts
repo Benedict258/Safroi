@@ -231,7 +231,8 @@ Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string"
         if (parsed.risk_score < 1) parsed.risk_score = 1;
         if (parsed.risk_score > 10) parsed.risk_score = 10;
         let hn = value; try { hn = new URL(value).hostname; } catch {}
-        const result = { id: crypto.randomUUID(), timestamp: Date.now(), type: 'website' as const, title: title || fr?.title || hn, url: value, ...parsed };
+        const status = (parsed.summary || '').toLowerCase().includes('enable javascript') || (parsed.summary || '').toLowerCase().includes('does not contain') || (parsed.summary || '').toLowerCase().includes('placeholder') ? 'limited' : 'ok';
+        const result = { id: crypto.randomUUID(), timestamp: Date.now(), type: 'website' as const, title: title || fr?.title || hn, url: value, status, ...parsed };
         setCache(ck, result);
         res.json(result);
       } else {

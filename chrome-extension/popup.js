@@ -486,6 +486,12 @@ function displayResult(data) {
     scoreValue.textContent = `${data.risk_score}/10`;
     summaryText.textContent = data.summary;
 
+    if (data.status === 'limited') {
+        severityText.textContent = 'Limited';
+        severityText.className = 'severity medium';
+        scoreValue.className = 'score medium';
+    }
+
     // Speak button
     const speakBtn = document.getElementById('speakBtn');
     speakBtn.style.display = 'block';
