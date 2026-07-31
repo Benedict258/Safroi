@@ -1,0 +1,27 @@
+services:
+  mongodb:
+    image: mongo:7
+    volumes:
+      - safroi-db:/data/db
+    restart: unless-stopped
+
+  backend:
+    image: benedict258/safroi-backend:latest
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    depends_on:
+      - mongodb
+    restart: unless-stopped
+
+  frontend:
+    image: benedict258/safroi-frontend:latest
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  safroi-db:

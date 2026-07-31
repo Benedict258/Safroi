@@ -9,6 +9,7 @@ import path from "path";
 import AdmZip from "adm-zip";
 import { connectDB } from "./src/db/index";
 import { User, Analysis } from "./src/db/models";
+import mongoose from "mongoose";
 import { ocrImage, highlightImage } from "./src/ocr/index";
 import { analyzeText, analyzeImage, translateText } from "./src/services/ai";
 
@@ -221,15 +222,14 @@ Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string"
   }
 
   function getCached(key: string) {
-    return (Analysis as any).findOne({ _id: `cache_${key}`, cacheExpiry: { $gt: new Date() } });
+    if (mongoose.connection.readyState !== 1) return null;
+    try { return (Analysis as any).findOne({ _id: `cache_${key}`, cacheExpiry: { $gt: new Date() } }); }
+    catch { return null; }
   }
 
   function setCache(key: string, data: any) {
-    (Analysis as any).findOneAndUpdate(
-      { _id: `cache_${key}` },
-      { _id: `cache_${key}`, type: 'cache', userId: 'system', title: 'Cached Analysis', summary: '', risk_score: 0, risks: [], cachedResult: data, cacheExpiry: new Date(Date.now() + 86400000) },
-      { upsert: true, returnDocument: 'after' }
-    );
+    if (mongoose.connection.readyState !== 1) return;
+    try { (Analysis as any).findOneAndUpdate({ _id: `cache_${key}` }, { _id: `cache_${key}`, type: 'cache', userId: 'system', title: 'Cached', summary: '', risk_score: 0, risks: [], cachedResult: data, cacheExpiry: new Date(Date.now() + 86400000) }, { upsert: true, returnDocument: 'after' }); } catch {}
   }
 
   app.post("/api/analyze", async (req, res) => {
