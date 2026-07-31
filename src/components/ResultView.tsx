@@ -40,61 +40,29 @@ export function ResultView({ result }: ResultViewProps) {
     }
     setIsTranslating(true);
     try {
-      const MARKER = '\n<<<SPLIT_MARKER_DO_NOT_TRANSLATE_THIS>>>\n';
-      const texts: string[] = [result.summary];
-      result.risks.forEach(r => {
-        texts.push(r.title);
-        texts.push(r.plain_explanation || r.description);
-        if (r.impact_line) texts.push(r.impact_line);
-      });
-      // Add actions to batch
-      const hasActions = result.actions && result.actions.length > 0;
-      if (hasActions) {
-        result.actions!.forEach(a => {
-          texts.push(a.title);
-          texts.push(a.advice);
-        });
-      }
-      const combined = texts.join(MARKER);
-      const translated = await translateText(
-        `Translate the following text into ${targetLang}. There are sections separated by the marker "<<<SPLIT_MARKER_DO_NOT_TRANSLATE_THIS>>>". You MUST preserve these markers exactly — do not translate, modify, or remove them. Only translate the text between the markers.\n\n${combined}`,
-        targetLang
-      );
-      const parts = translated.split('<<<SPLIT_MARKER_DO_NOT_TRANSLATE_THIS>>>').map((p: string) => p.trim());
+      // Translate summary
+      setTranslatedSummary(await translateText(result.summary, targetLang));
 
-      if (parts.length < 2) {
-        console.warn('[Translate] Marker lost — displaying original text');
-        setTranslatedSummary(translated.trim() || result.summary);
-        setTranslatedRisks(null);
-        setIsTranslating(false);
-        return;
-      }
+      // Translate risks in parallel (3 calls per risk: title + explanation + impact)
+      const riskPromises = result.risks.map(async (r) => ({
+        title: await translateText(r.title, targetLang),
+        explanation: await translateText(r.plain_explanation || r.description, targetLang),
+        impact: r.impact_line ? await translateText(r.impact_line, targetLang) : '',
+      }));
+      const riskResults = await Promise.all(riskPromises);
+      const rt: Record<number, { explanation: string; impact: string; title: string }> = {};
+      riskResults.forEach((t, i) => { rt[i] = t; });
+      setTranslatedRisks(rt);
 
-      setTranslatedSummary(parts[0] || result.summary);
-
-      let idx = 1;
-      const riskTranslations: Record<number, { explanation: string; impact: string; title: string }> = {};
-      result.risks.forEach((r, i) => {
-        riskTranslations[i] = {
-          title: parts[idx]?.trim() || r.title,
-          explanation: parts[idx + 1]?.trim() || (r.plain_explanation || r.description),
-          impact: r.impact_line ? (parts[idx + 2]?.trim() || r.impact_line) : '',
-        };
-        idx += r.impact_line ? 3 : 2;
-      });
-      setTranslatedRisks(riskTranslations);
-
-      // Parse translated actions
-      if (hasActions && result.actions) {
-        const translatedActions = result.actions.map((a, i) => ({
+      // Translate actions in parallel
+      if (result.actions?.length) {
+        const actionPromises = result.actions.map(async (a) => ({
           ...a,
-          title: parts[idx]?.trim() || a.title,
-          advice: parts[idx + 1]?.trim() || a.advice,
+          title: await translateText(a.title, targetLang),
+          advice: await translateText(a.advice, targetLang),
         }));
-        idx += result.actions.length * 2;
-        setTranslatedActions(translatedActions);
+        setTranslatedActions(await Promise.all(actionPromises));
       }
-      setTranslatedRisks(riskTranslations);
     } catch (error) {
       console.error(error);
       alert("Translation failed");
