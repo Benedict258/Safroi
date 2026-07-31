@@ -95,9 +95,9 @@ async function googleSearch(query: string) {
 // Robust website content fetcher with ToS/Privacy page detection
 async function fetchWebsiteContent(inputUrl: string) {
   const USER_AGENTS = [
+    'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
   ];
 
   const tryFetch = async (url: string, ua: string) => {
@@ -119,6 +119,18 @@ async function fetchWebsiteContent(inputUrl: string) {
       console.log(`[Fetch] Failed: ${url} — ${err instanceof Error ? err.message : err}`);
       return null;
     }
+  };
+
+  const tryGoogleCache = async (url: string) => {
+    const c = new AbortController();
+    const t = setTimeout(() => c.abort(), 8000);
+    try {
+      const r = await fetch(`https://webcache.googleusercontent.com/search?q=cache:${encodeURIComponent(url)}&strip=1`, { headers: { 'User-Agent': USER_AGENTS[0] }, signal: c.signal });
+      clearTimeout(t);
+      if (!r.ok) return null;
+      const html = await r.text();
+      return html && html.length > 500 ? html : null;
+    } catch { clearTimeout(t); return null; }
   };
 
   let parsedUrl: URL;
@@ -257,6 +269,21 @@ async function fetchWebsiteContent(inputUrl: string) {
       console.log(`[Fetch] ${url} didn't look like a policy page, trying next...`);
     }
   }
+
+  // Last resort: try Google Cache for policy URLs
+  console.log(`[Fetch] No content found — trying Google Cache for ${inputUrl}...`);
+  try {
+    const cacheUrls = [...new Set([inputUrl, `${parsedUrl.origin}/terms`, `${parsedUrl.origin}/privacy`])];
+    for (const cu of cacheUrls.slice(0, 3)) {
+      const cachedHtml = await tryGoogleCache(cu);
+      if (!cachedHtml || cachedHtml.length < 500) continue;
+      const content = cachedHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 15000);
+      if (content.length > 300) {
+        console.log(`[Fetch] Google Cache hit: ${content.length} chars from ${cu}`);
+        return { content, title: '', favicon: `${parsedUrl.origin}/favicon.ico` };
+      }
+    }
+  } catch {}
 
   console.log(`[Fetch] No policy content found for ${inputUrl}`);
   return null;

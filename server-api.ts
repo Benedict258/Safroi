@@ -72,14 +72,37 @@ async function googleSearch(query: string) {
 }
 
 async function fetchWebsiteContent(inputUrl: string) {
+  const UAS = [
+    'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)', // Googlebot — gets SSR from SPAs
+    'Mozilla/5.0 Chrome/130', // standard browser
+  ];
+
   const tryFetch = async (url: string) => {
+    for (const ua of UAS) {
+      const c = new AbortController();
+      const t = setTimeout(() => c.abort(), 10000);
+      try {
+        const r = await fetch(url, { headers: { 'User-Agent': ua, 'Accept': 'text/html' }, signal: c.signal, redirect: 'follow' });
+        clearTimeout(t);
+        if (!r.ok) continue;
+        const html = await r.text();
+        if (html && html.length > 500 && !html.startsWith('{') && !html.includes('"type":"module"')) return html;
+      } catch { clearTimeout(t); }
+    }
+    return null;
+  };
+
+  const tryGoogleCache = async (url: string) => {
     const c = new AbortController();
-    const t = setTimeout(() => c.abort(), 10000);
+    const t = setTimeout(() => c.abort(), 8000);
     try {
-      const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 Chrome/130', 'Accept': 'text/html' }, signal: c.signal, redirect: 'follow' });
+      const cacheUrl = `https://webcache.googleusercontent.com/search?q=cache:${encodeURIComponent(url)}&strip=1`;
+      const r = await fetch(cacheUrl, { headers: { 'User-Agent': UAS[0] }, signal: c.signal });
       clearTimeout(t);
       if (!r.ok) return null;
-      return await r.text();
+      const html = await r.text();
+      if (html && html.length > 500) return html;
+      return null;
     } catch { clearTimeout(t); return null; }
   };
   let pu: URL;
@@ -126,6 +149,19 @@ async function fetchWebsiteContent(inputUrl: string) {
     console.log(`[Fetch] Returning ${capped.length} chars from ${allUrls.length} pages`);
     return { content: capped, title: discoveredTitle };
   }
+
+  // Last resort: try Google Cache for the policy URLs
+  console.log(`[Fetch] No direct content — trying Google Cache...`);
+  for (const u of allUrls.slice(0, 4)) {
+    const cachedHtml = await tryGoogleCache(u);
+    if (!cachedHtml || cachedHtml.length < 500) continue;
+    const content = cachedHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 15000);
+    if (content.length > 300) {
+      console.log(`[Fetch] Google Cache hit: ${content.length} chars from ${u}`);
+      return { content, title: '' };
+    }
+  }
+
   console.log(`[Fetch] No content for ${inputUrl}`);
   return null;
 }
