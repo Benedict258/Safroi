@@ -97,7 +97,7 @@ export function Legal({ onBack }: LegalProps) {
                 <p>We use secure session tokens to maintain your session. We do not use third-party tracking pixels or sell your data to advertisers.</p>
 
                 <h3 className="text-white font-black uppercase text-sm tracking-wider mt-8">4. Third-Party Intelligence</h3>
-                <p>We utilize standardized AI models (Groq Llama-3 / Gemini) to process policy text. These providers do not use your personal identity data for training purposes through our integration.</p>
+                <p>We utilize Google's Gemma 4 AI model via the Gemini API to process policy text. These providers do not use your personal identity data for training purposes through our integration.</p>
               </div>
             </section>
 

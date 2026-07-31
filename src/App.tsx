@@ -417,7 +417,7 @@ function LandingPage({ onStart, user, onLogin }: { onStart: () => void, user: Au
           <div className="relative z-10 space-y-4 md:space-y-6 text-center">
             <div className="w-16 h-16 md:w-20 md:h-20 bg-accent-blue text-white rounded-2xl mx-auto flex items-center justify-center text-2xl md:text-3xl font-black shadow-[0_0_30px_rgba(56,189,248,0.2)]">2</div>
             <h3 className="text-xl md:text-2xl font-bold">Deconstruct</h3>
-            <p className="text-white/40 text-sm md:text-base font-medium leading-relaxed px-4">Llama-3.3 parses the legal jargon, cross-referencing with global privacy standards and security benchmarks.</p>
+            <p className="text-white/40 text-sm md:text-base font-medium leading-relaxed px-4">Gemma 4 parses legal jargon, cross-referencing with global privacy standards and security benchmarks.</p>
           </div>
 
           <div className="relative z-10 space-y-4 md:space-y-6 text-center">
@@ -501,14 +501,14 @@ function Features() {
   const features = [
     {
       title: "Extremely Fast",
-      desc: "Powered by Groq's LPU technology for near-instant legal grounding.",
+      desc: "Powered by Google's Gemini API for near-instant legal analysis.",
       icon: <Zap className="h-6 w-6" />,
       color: "text-accent-blue",
       bg: "bg-accent-blue/10"
     },
     {
       title: "Modern AI",
-      desc: "Leverages Llama-3.3 models for superior reasoning and speed.",
+      desc: "Leverages Google's Gemma 4 model for superior reasoning and accuracy.",
       icon: <Shield className="h-6 w-6" />,
       color: "text-white",
       bg: "bg-white/10"

@@ -15,7 +15,7 @@ Access the platform at: **[https://safroi.suirify.com/](https://safroi.suirify.c
   - **Website URLs**: Scan live Terms & Privacy pages directly.
   - **Text Input**: Paste raw legal text for instant deconstruction.
   - **File Upload**: Support for PDF, DOCX, and TXT contract analysis.
-- **AI Risk Scoring**: Utilizes state-of-the-art LLMs (Llama-3.3 / Gemini) to provide a 0-10 risk rating based on global privacy standards.
+- **AI Risk Scoring**: Utilizes state-of-the-art Google Gemma 4 model to provide a 0-10 risk rating based on global privacy standards.
 - **Categorized Red Flags**: Identifies specific risks in Data Collection, Liability, and User Rights.
 - **On-the-Fly Translation**: Instantly translate complex legal summaries into multiple languages (Spanish, French, German, etc.).
 - **Browser Extension**: Real-time protection that scans policies as you browse the web.
@@ -29,7 +29,7 @@ Access the platform at: **[https://safroi.suirify.com/](https://safroi.suirify.c
 - **Styling**: Tailwind CSS for a modern, responsive "technical-luxury" aesthetic.
 - **Animations**: `motion/react` for smooth transitions and interactive elements.
 - **Database & Auth**: Firebase (Firestore & Google Authentication).
-- **AI Integration**: Groq (Llama-3.3) and Google Gemini for deep legal text processing.
+- **AI Integration**: Google Gemini API with Gemma 4 for deep legal text processing.
 - **Icons**: Lucide React.
 
 ---
