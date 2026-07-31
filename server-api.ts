@@ -277,6 +277,18 @@ Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string"
     } catch (err) { res.status(500).json({ error: err instanceof Error ? err.message : "OCR failed." }); }
   });
 
+  app.get("/api/download-extension", (_, res) => {
+    try {
+      const zip = new AdmZip();
+      const ed = path.join(process.cwd(), "chrome-extension");
+      if (!fs.existsSync(ed)) return res.status(404).json({ error: "Extension files not found." });
+      zip.addLocalFolder(ed);
+      const buf = zip.toBuffer();
+      res.set({ "Content-Type": "application/zip", "Content-Disposition": "attachment; filename=safroi-extension.zip", "Content-Length": buf.length.toString() });
+      res.send(buf);
+    } catch { res.status(500).json({ error: "Failed." }); }
+  });
+
   // History
   app.post("/api/history", async (req, res) => {
     try {

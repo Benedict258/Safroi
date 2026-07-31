@@ -14,7 +14,8 @@ export function Header({ onNavigate, activeView, user, onLogin, onLogout }: Head
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const handleDownload = () => {
-    window.location.href = '/api/download-extension';
+    const apiUrl = (import.meta as any).env?.VITE_API_URL || '';
+    window.location.href = `${apiUrl}/api/download-extension`;
   };
 
   const menuItems = [
