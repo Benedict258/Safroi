@@ -90,7 +90,6 @@ async function fetchWebsiteContent(inputUrl: string) {
 
   const urls = [inputUrl];
   if (!inputUrl.includes('terms') && !inputUrl.includes('privacy') && !inputUrl.includes('policy')) {
-    // Agentic: crawl homepage for policy links
     const homeHtml = await tryFetch(inputUrl);
     if (homeHtml && homeHtml.length > 500) {
       const linkMatches = homeHtml.match(/href=["']([^"']*(?:terms|privacy|policy|legal|tos)[^"']*)["']/gi);
@@ -103,20 +102,29 @@ async function fetchWebsiteContent(inputUrl: string) {
     }
     urls.push(`${pu.origin}/terms`, `${pu.origin}/terms-of-service`, `${pu.origin}/privacy`, `${pu.origin}/privacy-policy`, `${pu.origin}/legal/terms`);
   }
+  // Normalize + deduplicate + filter assets
+  const normalizeUrl = (u: string) => { try { const p = new URL(u); p.search = ''; p.hash = ''; return p.href.replace(/\/$/, ''); } catch { return u; } };
+  const allUrls = [...new Set(urls.map(normalizeUrl))]
+    .filter(u => !u.match(/\.(js|css|png|jpg|svg|ico|woff|json|xml)(\?|$)/))
+    .slice(0, 8);
+
   let combinedContent = ''; let discoveredTitle = '';
-  const allUrls = [...new Set(urls)].slice(0, 8);
   for (const u of allUrls) {
     const html = await tryFetch(u);
-    if (!html || html.length < 300) continue;
+    if (!html || html.length < 100) continue;
+    // Skip non-policy pages (JS shells, JSON, etc.)
+    if (html.startsWith('{') || html.startsWith('/*') || html.includes('"type":"module"')) continue;
     let title = ""; const tm = html.match(/<title[^>]*>([^<]+)<\/title>/i); if (tm) title = tm[1].trim();
     const content = html.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gmi, "").replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gmi, "").replace(/<nav\b[^>]*>([\s\S]*?)<\/nav>/gmi, "").replace(/<footer\b[^>]*>([\s\S]*?)<\/footer>/gmi, "").replace(/<header\b[^>]*>([\s\S]*?)<\/header>/gmi, "").replace(/<[^>]+>/g, ' ').replace(/&[a-z]+;/g, ' ').replace(/\s+/g, ' ').trim();
+    if (content.length < 200) continue;
     combinedContent += `\n--- ${u} ---\n${content}`;
     if (!discoveredTitle && title) discoveredTitle = title;
     console.log(`[Fetch] Added ${content.length} chars from ${u}`);
   }
   if (combinedContent.length > 500) {
-    console.log(`[Fetch] Returning ${combinedContent.length} chars from ${allUrls.length} pages`);
-    return { content: combinedContent.substring(0, 30000), title: discoveredTitle };
+    const capped = combinedContent.substring(0, 15000);
+    console.log(`[Fetch] Returning ${capped.length} chars from ${allUrls.length} pages`);
+    return { content: capped, title: discoveredTitle };
   }
   console.log(`[Fetch] No content for ${inputUrl}`);
   return null;
@@ -231,6 +239,9 @@ Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string"
         if (parsed.risk_score < 1) parsed.risk_score = 1;
         if (parsed.risk_score > 10) parsed.risk_score = 10;
         let hn = value; try { hn = new URL(value).hostname; } catch {}
+        parsed.risk_score = Math.round(Number(parsed.risk_score)) || 1;
+        if (parsed.risk_score < 1) parsed.risk_score = 1;
+        if (parsed.risk_score > 10) parsed.risk_score = 10;
         const status = (parsed.summary || '').toLowerCase().includes('enable javascript') || (parsed.summary || '').toLowerCase().includes('does not contain') || (parsed.summary || '').toLowerCase().includes('placeholder') ? 'limited' : 'ok';
         const result = { id: crypto.randomUUID(), timestamp: Date.now(), type: 'website' as const, title: title || fr?.title || hn, url: value, status, ...parsed };
         setCache(ck, result);
