@@ -36,8 +36,13 @@ function extractJSON(text: string): string {
   }
   const match = text.match(/\{[\s\S]*\}/);
   if (match) return match[0];
-  console.error('[extractJSON] No JSON found in:', text.slice(0, 500));
   return '{}';
+}
+
+function isRefusal(text: string): boolean {
+  const phrases = ['i do not have access', 'cannot access', 'private link', 'authenticated', 'login required', 'sign in', 'unable to access', 'cannot analyze', 'behind a login', 'do not have permission', 'cannot fetch', 'unable to fetch'];
+  const lower = text.toLowerCase();
+  return phrases.some(p => lower.includes(p));
 }
 
 
@@ -381,6 +386,17 @@ async function startServer() {
       if (url && !value) { value = url; type = 'website'; }
       if (!value) return res.status(400).json({ error: "Value is required" });
 
+      // Extract root domain for deep links
+      if (type === 'website' && value.startsWith('http')) {
+        try {
+          const parsed = new URL(value);
+          if (parsed.pathname.length > 1 && !parsed.pathname.match(/\/(terms|privacy|policy|legal|tos)/i)) {
+            console.log(`[Analyze] Extracting root: ${value} → ${parsed.origin}`);
+            value = parsed.origin;
+          }
+        } catch {}
+      }
+
       const ck = cacheKey(type, value);
       const cached = await getCached(ck);
       if (cached && cached.cachedResult) { console.log(`[Cache] HIT`); return res.json(cached.cachedResult); }
@@ -398,6 +414,7 @@ async function startServer() {
         }
         const raw = await analyzeText(prompt);
         console.log(`[Gemma] Website raw (${raw.length} chars):`, raw.slice(0, 200));
+        if (isRefusal(raw)) return res.status(422).json({ error: "This page cannot be analyzed. It may require login or be a private link.", refusal: true });
         const json = extractJSON(raw);
         console.log(`[Gemma] Extracted JSON:`, json.slice(0, 200));
         const parsed = safeParseJSON(json);
@@ -412,6 +429,7 @@ async function startServer() {
         const prompt = BASE_PROMPT + `\nCONTRACT TEXT:\n${value}`;
         const raw = await analyzeText(prompt);
         console.log(`[Gemma] Contract raw (${raw.length} chars):`, raw.slice(0, 200));
+        if (isRefusal(raw)) return res.status(422).json({ error: "Cannot analyze this text — it does not appear to be a contract or policy document.", refusal: true });
         const json = extractJSON(raw);
         console.log(`[Gemma] Extracted JSON:`, json.slice(0, 200));
         const parsed = safeParseJSON(json);

@@ -43,6 +43,17 @@ function extractJSON(text: string): string {
   return '{}';
 }
 
+function isRefusal(text: string): boolean {
+  const refusalPhrases = [
+    'i do not have access', 'cannot access', 'private link', 'private session',
+    'authenticated', 'login required', 'sign in', 'unable to access',
+    'cannot analyze', 'not available', 'behind a login', 'requires authentication',
+    'do not have permission', 'cannot fetch', 'unable to fetch',
+  ];
+  const lower = text.toLowerCase();
+  return refusalPhrases.some(p => lower.includes(p));
+}
+
 function validateEnv() {
   const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (!key) { console.warn('GEMINI_API_KEY not set.'); return false; }
@@ -183,6 +194,17 @@ Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string"
       if (url && !value) { value = url; type = 'website'; }
       if (!value) return res.status(400).json({ error: "Value required." });
 
+      // Extract root domain for deep links (e.g. claude.ai/chat/xxx → claude.ai)
+      if (type === 'website' && value.startsWith('http')) {
+        try {
+          const parsed = new URL(value);
+          if (parsed.pathname.length > 1 && !parsed.pathname.match(/\/(terms|privacy|policy|legal|tos)/i)) {
+            console.log(`[Analyze] Deep URL detected, extracting root: ${value} → ${parsed.origin}`);
+            value = parsed.origin;
+          }
+        } catch {}
+      }
+
       // Cache check
       const ck = cacheKey(type, value);
       const cached = await getCached(ck);
@@ -200,7 +222,8 @@ Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string"
           prompt = BASE_PROMPT + `\nURL: ${value}\nSearch results:\n${searchResult}\n\nAnalyze from search results.`;
         }
         const raw = await analyzeText(prompt);
-        console.log(`[Gemma] Raw response (${raw.length} chars):`, raw.slice(0, 200));
+        console.log(`[Gemma] Raw (${raw.length} chars):`, raw.slice(0, 300));
+        if (isRefusal(raw)) return res.status(422).json({ error: "This page cannot be analyzed. It may require login, be a private link, or not contain public policy content.", refusal: true });
         const json = extractJSON(raw);
         console.log(`[Gemma] Extracted JSON:`, json.slice(0, 200));
         const parsed = safeParseJSON(json);
@@ -213,6 +236,7 @@ Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string"
         res.json(result);
       } else {
         const raw = await analyzeText(BASE_PROMPT + `\nCONTRACT TEXT:\n${value}`);
+        if (isRefusal(raw)) return res.status(422).json({ error: "Cannot analyze this text — it does not appear to be a contract or policy document.", refusal: true });
         const json = extractJSON(raw);
         const parsed = safeParseJSON(json);
         parsed.risk_score = Math.round(Number(parsed.risk_score) || 1);

@@ -419,6 +419,13 @@ function displayResult(data) {
     document.getElementById('error').style.display = 'none';
     document.getElementById('results').style.display = 'block';
 
+    // Check for refusal/error response from API
+    if (data.error || data.refusal) {
+        document.getElementById('results').style.display = 'none';
+        showError(data.error || "This site could not be analyzed. It may require login or be private.");
+        return;
+    }
+
     const scoreValue = document.getElementById('scoreValue');
     const severityText = document.getElementById('severityText');
     const summaryText = document.getElementById('summaryText');
