@@ -266,9 +266,9 @@ Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string"
       const { text, language } = req.body;
       if (!text || !language) return res.status(400).json({ error: "Text and language required." });
       const langCode = LANG_MAP[language] || 'en';
-      const chunks = text.match(/[\s\S]{1,180}/g) || [text];
+      const chunks = text.match(/[\s\S]{1,200}/g) || [text];
       const audioBuffers: Buffer[] = [];
-      for (const chunk of chunks.slice(0, 5)) {
+      for (const chunk of chunks.slice(0, 8)) {
         const url = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${langCode}&q=${encodeURIComponent(chunk)}`;
         const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
         if (!response.ok) continue;

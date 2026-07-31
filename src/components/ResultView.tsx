@@ -15,6 +15,7 @@ export function ResultView({ result }: ResultViewProps) {
   const [targetLang, setTargetLang] = useState('Hausa');
   const [viewMode, setViewMode] = useState<ViewMode>('plain');
   const [translatedRisks, setTranslatedRisks] = useState<Record<number, { explanation: string; impact: string; title: string }> | null>(null);
+  const [translatedActions, setTranslatedActions] = useState<Action[] | null>(null);
   const [speakingSection, setSpeakingSection] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -34,6 +35,7 @@ export function ResultView({ result }: ResultViewProps) {
     if (translatedSummary) {
       setTranslatedSummary(null);
       setTranslatedRisks(null);
+      setTranslatedActions(null);
       return;
     }
     setIsTranslating(true);
@@ -45,6 +47,14 @@ export function ResultView({ result }: ResultViewProps) {
         texts.push(r.plain_explanation || r.description);
         if (r.impact_line) texts.push(r.impact_line);
       });
+      // Add actions to batch
+      const hasActions = result.actions && result.actions.length > 0;
+      if (hasActions) {
+        result.actions!.forEach(a => {
+          texts.push(a.title);
+          texts.push(a.advice);
+        });
+      }
       const combined = texts.join(MARKER);
       const translated = await translateText(
         `Translate the following text into ${targetLang}. There are sections separated by the marker "<<<SPLIT_MARKER_DO_NOT_TRANSLATE_THIS>>>". You MUST preserve these markers exactly — do not translate, modify, or remove them. Only translate the text between the markers.\n\n${combined}`,
@@ -72,6 +82,18 @@ export function ResultView({ result }: ResultViewProps) {
         };
         idx += r.impact_line ? 3 : 2;
       });
+      setTranslatedRisks(riskTranslations);
+
+      // Parse translated actions
+      if (hasActions && result.actions) {
+        const translatedActions = result.actions.map((a, i) => ({
+          ...a,
+          title: parts[idx]?.trim() || a.title,
+          advice: parts[idx + 1]?.trim() || a.advice,
+        }));
+        idx += result.actions.length * 2;
+        setTranslatedActions(translatedActions);
+      }
       setTranslatedRisks(riskTranslations);
     } catch (error) {
       console.error(error);
@@ -195,7 +217,7 @@ export function ResultView({ result }: ResultViewProps) {
       )}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
         {result.risks.map((risk, index) => (
-          <RiskCard key={index} risk={risk} index={index} viewMode={viewMode} translated={translatedRisks?.[index]} />
+          <RiskCard key={index} risk={risk} index={index} viewMode={viewMode} translated={translatedRisks?.[index]} onSpeak={handleSpeak} speakingSection={speakingSection || ''} />
         ))}
       </div>
 
@@ -208,15 +230,21 @@ export function ResultView({ result }: ResultViewProps) {
             <button onClick={() => handleSpeak('actions', result.actions!.map(a => `${a.title}. ${a.advice}`).join('. '))} className={`p-1.5 rounded-lg transition-all ${speakingSection === 'actions' ? 'bg-mint text-[#050B10]' : 'bg-white/5 text-white/40 hover:bg-white/10 hover:text-white'}`} title="Read aloud">{speakingSection === 'actions' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-4 w-4" />}</button>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-            {result.actions.map((action, i) => (
+            {result.actions.map((action, i) => {
+              const t = translatedActions?.[i];
+              const title = t?.title || action.title;
+              const advice = t?.advice || action.advice;
+              return (
               <div key={i} className="p-5 rounded-2xl border border-mint/20 bg-mint/5 flex flex-col gap-3">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between">
                   <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full border ${action.urgency === 'high' ? 'text-risk-high border-risk-high/30' : action.urgency === 'medium' ? 'text-risk-medium border-risk-medium/30' : 'text-risk-low border-risk-low/30'}`}>{action.urgency} priority</span>
+                  <button onClick={() => handleSpeak(`action-${i}`, `${title}. ${advice}`)} className={`p-1 rounded-lg transition-all ${speakingSection === `action-${i}` ? 'bg-mint text-[#050B10]' : 'text-white/30 hover:text-white'}`} title="Read aloud">{speakingSection === `action-${i}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Volume2 className="h-3.5 w-3.5" />}</button>
                 </div>
-                <h3 className="text-base md:text-lg font-extrabold text-white">{action.title}</h3>
-                <p className="text-sm text-white/60 leading-relaxed">{action.advice}</p>
+                <h3 className="text-base md:text-lg font-extrabold text-white">{title}</h3>
+                <p className="text-sm text-white/60 leading-relaxed">{advice}</p>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -246,9 +274,11 @@ interface RiskCardProps {
   index: number;
   viewMode: ViewMode;
   translated?: { explanation: string; impact: string; title: string } | null;
+  onSpeak: (section: string, text: string) => void;
+  speakingSection: string;
 }
 
-const RiskCard: React.FC<RiskCardProps> = ({ risk, index, viewMode, translated }) => {
+const RiskCard: React.FC<RiskCardProps> = ({ risk, index, viewMode, translated, onSpeak, speakingSection }) => {
   const gradientClass = 
     risk.severity === 'low' ? 'risk-gradient-low' : 
     risk.severity === 'medium' ? 'risk-gradient-medium' : 
@@ -296,6 +326,10 @@ const RiskCard: React.FC<RiskCardProps> = ({ risk, index, viewMode, translated }
           <p className="text-mint text-sm md:text-base font-bold italic leading-snug">"{translated?.impact || risk.impact_line}"</p>
         </div>
       )}
+      <button onClick={() => onSpeak(`risk-${index}`, `${translated?.title || risk.title}. ${explanation}.${risk.impact_line ? ` ${translated?.impact || risk.impact_line}` : ''}`)} className={`mt-2 self-start flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-bold transition-all ${speakingSection === `risk-${index}` ? 'bg-mint text-[#050B10]' : 'bg-white/5 text-white/30 hover:bg-white/10 hover:text-white/60'}`}>
+        {speakingSection === `risk-${index}` ? <Loader2 className="h-3 w-3 animate-spin" /> : <Volume2 className="h-3 w-3" />}
+        Read aloud
+      </button>
       {risk.clause && (
         <div className="mt-auto pt-4 border-t border-white/5 relative z-10 text-pretty">
           <span className="text-[9px] md:text-[10px] font-bold uppercase tracking-widest text-white/20 block mb-2">Original Clause</span>
