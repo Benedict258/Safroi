@@ -18,8 +18,6 @@ Every risk-analysis, plain-language explanation, and translation call in Safroi 
 
 No fine-tuning, no RAG — reliability comes from **schema-constrained output**, **role framing** (the model is prompted to reason as an impartial contract reviewer, not a generic assistant), and explicit tone constraints.
 
-> **Note for reviewers:** this project previously used the Groq API during early development and was fully migrated to Gemma 4 via the Gemini API prior to submission. The migration is documented in commit history (`ef84430`). No Groq API calls remain — the client-side file `src/services/groq.ts` retains only its historical filename; all three functions inside (`analyzeWebsite`, `analyzeContract`, `translateText`) call our own `/api/*` backend, not any external AI provider.
-
 ---
 
 ## Features
