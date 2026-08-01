@@ -323,7 +323,7 @@ export default function App() {
           <div className="flex flex-col md:flex-row justify-between items-center gap-8 mb-12">
             <div className="space-y-4 text-center md:text-left">
               <div className="text-2xl font-black italic uppercase">Saf<span className="text-mint">r</span><span className="text-accent-blue">o</span><span className="text-mint">i</span></div>
-              <p className="text-white/40 max-w-xs font-medium">Built by <span className="text-white">TeamSuiaah</span> to keep you safe online.</p>
+              <p className="text-white/40 max-w-xs font-medium">AI-powered contract analysis for everyone.</p>
             </div>
             <div className="flex flex-wrap gap-x-12 gap-y-8 justify-center md:justify-end">
               <div className="space-y-4 min-w-[120px]">
@@ -341,18 +341,10 @@ export default function App() {
                   <li><button onClick={() => setActiveView('legal')} className="hover:text-mint transition-colors underline-offset-4 decoration-mint/30">Privacy Policy</button></li>
                 </ul>
               </div>
-              <div className="space-y-4 min-w-[150px]">
-                <h4 className="text-xs font-black uppercase tracking-widest text-white/20 text-center md:text-left">Connect</h4>
-                <ul className="space-y-2 text-sm font-bold text-center md:text-left">
-                  <li><a href="https://testnet.suirify.com" target="_blank" rel="noopener noreferrer" className="hover:text-accent-blue transition-colors flex items-center justify-center md:justify-start gap-2">Suirify <Zap className="h-3 w-3" /></a></li>
-                  <li><a href="https://x.com/SuirifyProtocol" target="_blank" rel="noopener noreferrer" className="hover:text-accent-blue transition-colors">X: Protocol</a></li>
-                  <li><a href="https://x.com/TeamSuiaah" target="_blank" rel="noopener noreferrer" className="hover:text-accent-blue transition-colors">X: Team Suiaah</a></li>
-                </ul>
-              </div>
             </div>
           </div>
           <div className="pt-8 border-t border-white/5 text-center text-white/10 text-xs font-bold tracking-widest uppercase">
-            <p>© 2026 Safroi by TeamSuiaah. Integration with Suirify Platform. All rights reserved.</p>
+            <p>© 2026 Safroi. All rights reserved.</p>
           </div>
         </div>
       </footer>
@@ -559,13 +551,7 @@ function About() {
         <div className="p-8 md:p-10 bg-[#0B1219] rounded-2xl border border-white/10 space-y-4 md:space-y-6">
           <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Our Mission</h2>
           <p className="text-base md:text-lg text-white/60 leading-relaxed font-medium">
-            Safroi was born out of a simple frustration: the sheer length and complexity of modern legal documents. Built by <span className="text-mint font-bold italic">TeamSuiaah</span>, we believe that understanding your rights shouldn't require a law degree.
-          </p>
-        </div>
-        <div className="p-8 md:p-10 bg-[#0B1219] rounded-2xl border border-white/10 space-y-4 md:space-y-6">
-          <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Suirify Integration</h2>
-          <p className="text-base md:text-lg text-white/60 leading-relaxed font-medium">
-            Seamlessly connected with the <a href="https://testnet.suirify.com" className="text-accent-blue hover:underline decoration-accent-blue/30 underline-offset-4">Suirify Ecosystem</a>, Safroi acts as your personal digital guardian. We ensure your footprint remains secure while you explore the open internet.
+            Safroi was born out of a simple frustration: the sheer length and complexity of modern legal documents. We believe that understanding your rights shouldn't require a law degree.
           </p>
         </div>
       </div>
