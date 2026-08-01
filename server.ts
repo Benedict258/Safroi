@@ -403,7 +403,7 @@ async function startServer() {
   });
 
   // Gemma 4 AI Analysis
-  function cacheKey(type: string, value: string) { return `${type}:${value.toLowerCase().trim().slice(0, 200)}`; }
+  function cacheKey(type: string, value: string) { const n = value.replace(/\/+$/, '').toLowerCase().trim().slice(0, 200); return `${type}:${n}`; }
   function getCached(key: string) { return (Analysis as any).findOne({ _id: `cache_${key}`, cacheExpiry: { $gt: new Date() } }); }
   function setCache(key: string, data: any) { (Analysis as any).findOneAndUpdate({ _id: `cache_${key}` }, { _id: `cache_${key}`, type: 'cache', userId: 'system', title: 'Cached', summary: '', risk_score: 0, risks: [], cachedResult: data, cacheExpiry: new Date(Date.now() + 86400000) }, { upsert: true, returnDocument: 'after' }); }
 

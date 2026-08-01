@@ -218,7 +218,8 @@ async function startServer() {
 Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string","description":"string","severity":"string","plain_explanation":"string","impact_line":"string","category_tag":"string"}],"actions":[{"title":"string","advice":"string","urgency":"string"}]}`;
 
   function cacheKey(type: string, value: string) {
-    return `${type}:${value.toLowerCase().trim().slice(0, 200)}`;
+    const normalized = value.replace(/\/+$/, '').toLowerCase().trim().slice(0, 200);
+    return `${type}:${normalized}`;
   }
 
   function getCached(key: string) {
