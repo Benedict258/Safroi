@@ -66,15 +66,16 @@ No fine-tuning, no RAG — reliability comes from **schema-constrained output**,
 
 Three options — fastest first:
 
-### Option A — Pull & Run (Docker Hub, no build)
+### Option A — Pull & Run (Docker Hub, no clone, no build)
 ```bash
-git clone https://github.com/Benedict258/Safroi-roi.git && cd Safroi-roi
-cp .env.example .env   # then edit .env — set GEMINI_API_KEY
+curl -O https://raw.githubusercontent.com/Benedict258/Safroi-roi/main/docker-compose.pull.yml
+curl -O https://raw.githubusercontent.com/Benedict258/Safroi-roi/main/.env.docker && mv .env.docker .env
+# edit .env — paste your GEMINI_API_KEY
 docker compose -f docker-compose.pull.yml up
 ```
-Pulls pre-built images from Docker Hub. Backend on `:8080`, frontend on `:3000`. MongoDB included.
+No git clone needed. Pulls pre-built images from Docker Hub. Backend on `:8080`, frontend on `:3000`. MongoDB included automatically.
 
-**Docker Hub images:** `benedict258/safroi-backend:latest` | `benedict258/safroi-frontend:latest`
+**Docker Hub images:** `benedict258/safroi-backend:v1.0` | `benedict258/safroi-frontend:v1.0`
 
 ### Option B — Build Locally (Docker)
 ```bash
