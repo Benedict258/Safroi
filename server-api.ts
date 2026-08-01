@@ -102,7 +102,7 @@ async function fetchWebsiteContent(inputUrl: string) {
       clearTimeout(t);
       if (!r.ok) return null;
       const html = await r.text();
-      if (html && html.length > 500) return html;
+      if (html && html.length > 500 && !html.startsWith('{') && !html.includes('"use strict"') && !html.includes('function(')) return html;
       return null;
     } catch { clearTimeout(t); return null; }
   };
@@ -125,6 +125,12 @@ async function fetchWebsiteContent(inputUrl: string) {
       }
     }
     urls.push(`${pu.origin}/terms`, `${pu.origin}/terms-of-service`, `${pu.origin}/privacy`, `${pu.origin}/privacy-policy`, `${pu.origin}/legal/terms`);
+
+    // Try common policy subdomains (e.g. policies.google.com for google.com)
+    const rootDomain = h.split('.').slice(-2).join('.');
+    if (rootDomain !== h) {
+      urls.push(`https://policies.${rootDomain}/terms`, `https://policies.${rootDomain}/privacy`, `https://legal.${rootDomain}/terms`, `https://legal.${rootDomain}/privacy`);
+    }
   }
   // Normalize + deduplicate + filter assets
   const normalizeUrl = (u: string) => { try { const p = new URL(u); p.search = ''; p.hash = ''; return p.href.replace(/\/$/, ''); } catch { return u; } };
