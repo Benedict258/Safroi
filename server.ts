@@ -213,18 +213,23 @@ async function fetchWebsiteContent(inputUrl: string) {
     }
   }
 
-  // Try the URL directly, then common ToS/Privacy paths
+  // Try the URL directly, then common ToS/Privacy paths across subdomains
   const urlsToTry = [inputUrl];
   if (!inputUrl.toLowerCase().includes('terms') && !inputUrl.toLowerCase().includes('privacy') && !inputUrl.toLowerCase().includes('policy') && !inputUrl.toLowerCase().includes('legal') && !inputUrl.toLowerCase().includes('tos')) {
-    urlsToTry.push(
-      `${parsedUrl.origin}/terms`,
-      `${parsedUrl.origin}/terms-of-service`,
-      `${parsedUrl.origin}/tos`,
-      `${parsedUrl.origin}/privacy`,
-      `${parsedUrl.origin}/privacy-policy`,
-      `${parsedUrl.origin}/legal/terms`,
-      `${parsedUrl.origin}/legal/privacy`,
-    );
+    const rootDomain = hostname.split('.').slice(-2).join('.');
+    const altOrigins = new Set([parsedUrl.origin]);
+    if (rootDomain !== hostname) {
+      altOrigins.add(`https://${rootDomain}`);
+      altOrigins.add(`https://www.${rootDomain}`);
+      altOrigins.add(`https://policies.${rootDomain}`);
+      altOrigins.add(`https://legal.${rootDomain}`);
+    }
+    const paths = ['/terms', '/terms-of-service', '/tos', '/privacy', '/privacy-policy', '/legal/terms', '/legal/privacy', '/legal'];
+    for (const origin of altOrigins) {
+      for (const path of paths) {
+        urlsToTry.push(`${origin}${path}`);
+      }
+    }
   }
 
   for (const url of urlsToTry) {

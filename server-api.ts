@@ -126,10 +126,22 @@ async function fetchWebsiteContent(inputUrl: string) {
     }
     urls.push(`${pu.origin}/terms`, `${pu.origin}/terms-of-service`, `${pu.origin}/privacy`, `${pu.origin}/privacy-policy`, `${pu.origin}/legal/terms`);
 
-    // Try common policy subdomains (e.g. policies.google.com for google.com)
+    // Always try policy subdomains and root domain for any site
     const rootDomain = h.split('.').slice(-2).join('.');
+    const altOrigins = new Set<string>();
+    altOrigins.add(pu.origin);
     if (rootDomain !== h) {
-      urls.push(`https://policies.${rootDomain}/terms`, `https://policies.${rootDomain}/privacy`, `https://legal.${rootDomain}/terms`, `https://legal.${rootDomain}/privacy`);
+      altOrigins.add(`https://${rootDomain}`);
+      altOrigins.add(`https://www.${rootDomain}`);
+      altOrigins.add(`https://policies.${rootDomain}`);
+      altOrigins.add(`https://legal.${rootDomain}`);
+    }
+    const policyPaths = ['/terms', '/terms-of-service', '/tos', '/privacy', '/privacy-policy', '/legal/terms', '/legal/privacy', '/legal'];
+    for (const origin of altOrigins) {
+      for (const path of policyPaths) {
+        const u = `${origin}${path}`;
+        if (!urls.includes(u)) urls.push(u);
+      }
     }
   }
   // Normalize + deduplicate + filter assets
