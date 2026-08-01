@@ -62,7 +62,8 @@ export default function App() {
       addToHistory(result);
     } catch (error) {
       console.error(error);
-      alert("Analysis failed. Please try again.");
+      const msg = error instanceof Error ? error.message : "Analysis failed. Please try again.";
+      alert(msg);
     } finally {
       setIsLoading(false);
     }
