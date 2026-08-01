@@ -301,12 +301,26 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
 
-            // Check storage first for recent analysis
+            // Check storage — background worker may already be analyzing
             chrome.storage.local.get([domain], (result) => {
-                if (result[domain] && (Date.now() - result[domain].timestamp < 3600000)) { // 1 hour cache
+                if (result[domain] && (Date.now() - result[domain].timestamp < 3600000)) {
                     displayResult(result[domain]);
                 } else {
-                    startAnalysis(url, domain, pageTitle, favIconUrl);
+                    showLoading();
+                    // Listen for background worker to finish
+                    const listener = (changes, area) => {
+                        if (area === 'local' && changes[domain]) {
+                            chrome.storage.onChanged.removeListener(listener);
+                            if (changes[domain].newValue) displayResult(changes[domain].newValue);
+                            else showError("No result received.");
+                        }
+                    };
+                    chrome.storage.onChanged.addListener(listener);
+                    // Timeout fallback — start own analysis if background doesn't respond
+                    setTimeout(() => {
+                        chrome.storage.onChanged.removeListener(listener);
+                        if (!result[domain]) startAnalysis(url, domain, pageTitle, favIconUrl);
+                    }, 5000);
                 }
             });
         });
