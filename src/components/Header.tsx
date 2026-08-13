@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Info, Menu, LogIn, LogOut, User as UserIcon, X } from 'lucide-react';
+import { cn } from '../lib/utils';
 import type { AuthUser } from '../services/auth';
 
 interface HeaderProps {
-  onNavigate: (view: 'home' | 'dashboard' | 'history' | 'about') => void;
+  onNavigate: (view: 'home' | 'dashboard' | 'history' | 'about' | 'pricing') => void;
   activeView: string;
   user: AuthUser | null;
   onLogin: () => void;
@@ -20,6 +21,7 @@ export function Header({ onNavigate, activeView, user, onLogin, onLogout }: Head
 
   const menuItems = [
     { label: 'Analyzer', view: 'dashboard' as const },
+    { label: 'Pricing', view: 'pricing' as const },
     { label: 'History', view: 'history' as const },
     { label: 'About', view: 'about' as const },
   ];
@@ -60,8 +62,11 @@ export function Header({ onNavigate, activeView, user, onLogin, onLogout }: Head
           
           {user ? (
             <div className="flex items-center gap-2 md:gap-3">
-              <div className="hidden xs:flex flex-col items-end">
+              <div className="hidden xs:flex flex-col items-end gap-0.5">
                 <span className="text-[10px] md:text-xs font-bold text-white leading-none truncate max-w-[100px]">{user.displayName}</span>
+                <div className="flex items-center gap-1.5">
+                  <PlanBadge plan={user.plan} planActive={user.planActive} />
+                </div>
                 <button onClick={onLogout} className="text-[9px] md:text-[10px] font-black text-white/40 uppercase hover:text-red-400 transition-colors tracking-widest">Logout</button>
               </div>
                 <div className="h-8 w-8 md:h-10 md:w-10 rounded-lg bg-mint/20 flex items-center justify-center border border-white/10">
@@ -125,6 +130,41 @@ export function Header({ onNavigate, activeView, user, onLogin, onLogout }: Head
         </div>
       )}
     </header>
+  );
+}
+
+function PlanBadge({ plan, planActive }: { plan?: string; planActive?: boolean }) {
+  const effectivePlan = planActive === false && plan !== 'free' ? 'expired' : plan || 'free';
+
+  if (effectivePlan === 'free') {
+    return (
+      <div className="flex items-center gap-1">
+        <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-white/10 text-white/40 border border-white/5">
+          Free
+        </span>
+      </div>
+    );
+  }
+
+  if (effectivePlan === 'expired') {
+    return (
+      <div className="flex items-center gap-1">
+        <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20">
+          {plan} — Expired
+        </span>
+      </div>
+    );
+  }
+
+  const colors = {
+    pro: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+    business: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+  };
+
+  return (
+    <span className={cn("text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border", colors[plan as keyof typeof colors] || colors.pro)}>
+      {plan}
+    </span>
   );
 }
 

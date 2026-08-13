@@ -15,6 +15,8 @@ import { analyzeText, analyzeImage, translateText } from "./src/services/ai";
 import { generateResetToken, hashResetToken, sendPasswordResetEmail } from "./src/services/email";
 import { securityHeaders, corsStrict, rateLimit, rateLimitAuth } from "./src/middleware/security";
 import { validate, signupSchema, loginSchema, resetSchema, resetConfirmSchema, analyzeSchema, translateSchema, speakSchema, ocrSchema } from "./src/middleware/validate";
+import paystackRouter from "./src/routes/paystack";
+import lemonsqueezyRouter from "./src/routes/lemonsqueezy";
 
 const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
 
@@ -322,7 +324,14 @@ async function startServer() {
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
     maxAge: 86400,
   }));
-  app.use(express.json({ limit: '10mb' }));
+  app.use(express.json({
+    limit: '10mb',
+    verify: (req: any, _res, buf) => {
+      if (req.url?.startsWith('/api/paystack/webhook') || req.url?.startsWith('/api/lemonsqueezy/webhook')) {
+        req.rawBody = buf.toString();
+      }
+    },
+  }));
 
   // Rate limiting — global + auth-specific
   app.use('/api', rateLimit(60, 60000));
@@ -338,6 +347,10 @@ async function startServer() {
     console.log(`[API] ${req.method} ${req.path} - Origin: ${req.headers.origin}`);
     next();
   });
+
+  // Payment routers
+  app.use('/api/paystack', paystackRouter);
+  app.use('/api/lemonsqueezy', lemonsqueezyRouter);
 
   // API endpoint for health check
   app.get("/api/health", (req, res) => {

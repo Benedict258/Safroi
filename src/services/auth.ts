@@ -6,6 +6,9 @@ export interface AuthUser {
   displayName: string;
   token: string;
   loggedIn: boolean;
+  plan?: 'free' | 'pro' | 'business';
+  planActive?: boolean;
+  paymentProvider?: 'paystack' | 'lemonsqueezy' | null;
 }
 
 export async function signup(email: string, password: string, name: string): Promise<AuthUser> {

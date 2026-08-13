@@ -4,6 +4,8 @@ import { AnalysisForm } from './components/AnalysisForm';
 import { ResultView } from './components/ResultView';
 import { HistoryView } from './components/HistoryView';
 import { Legal } from './components/Legal';
+import { Pricing } from './pages/Pricing';
+import { PaystackCallback, LemonSqueezySuccess } from './pages/PaymentResults';
 import { analyzeWebsite, analyzeContract } from './services/groq';
 import { AnalysisResult } from './types';
 import { useHistory } from './hooks/useHistory';
@@ -13,7 +15,7 @@ import { login, signup, requestReset, logout, getStoredUser, getMe } from './ser
 import type { AuthUser } from './services/auth';
 
 export default function App() {
-  const [activeView, setActiveView] = useState<'home' | 'dashboard' | 'history' | 'about' | 'legal'>('home');
+  const [activeView, setActiveView] = useState<'home' | 'dashboard' | 'history' | 'about' | 'legal' | 'pricing' | 'paystack-callback' | 'lemonsqueezy-success'>('home');
   const [currentResult, setCurrentResult] = useState<AnalysisResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [user, setUser] = useState<AuthUser | null>(getStoredUser);
@@ -36,7 +38,15 @@ export default function App() {
     });
     const params = new URLSearchParams(window.location.search);
     const urlParam = params.get('url');
-    if (urlParam) {
+    const path = window.location.pathname;
+
+    if (path === '/pricing' || path === '/pricing/') {
+      setActiveView('pricing');
+    } else if (path === '/payment/paystack/callback') {
+      setActiveView('paystack-callback');
+    } else if (path === '/payment/lemonsqueezy/success') {
+      setActiveView('lemonsqueezy-success');
+    } else if (urlParam) {
       setActiveView('dashboard');
       window.history.replaceState({}, document.title, window.location.pathname);
     }
@@ -264,6 +274,8 @@ export default function App() {
 
         {activeView === 'dashboard' && (
           <div className="space-y-12">
+            <PaymentBanner user={user} />
+
             {!currentResult && (
               <div className="text-center max-w-4xl mx-auto space-y-6 mb-16">
                 <h1 className="text-6xl md:text-7xl font-extrabold tracking-tight leading-tight">
@@ -316,6 +328,11 @@ export default function App() {
 
         {activeView === 'about' && <About />}
         {activeView === 'legal' && <Legal onBack={() => setActiveView('home')} />}
+        {activeView === 'pricing' && (
+          <Pricing user={user} onLogin={() => setShowAuthModal(true)} onNavigate={(v) => setActiveView(v as any)} />
+        )}
+        {activeView === 'paystack-callback' && <PaystackCallback />}
+        {activeView === 'lemonsqueezy-success' && <LemonSqueezySuccess />}
       </main>
 
       <footer className="border-t border-white/10 bg-[#050B10] py-16 mt-20">
@@ -330,6 +347,7 @@ export default function App() {
                 <h4 className="text-xs font-black uppercase tracking-widest text-white/20">Product</h4>
                 <ul className="space-y-2 text-sm font-bold">
                   <li><button onClick={() => setActiveView('dashboard')} className="hover:text-mint transition-colors">Analyzer</button></li>
+                  <li><button onClick={() => setActiveView('pricing')} className="hover:text-mint transition-colors">Pricing</button></li>
                   <li><button onClick={() => setActiveView('history')} className="hover:text-mint transition-colors">History</button></li>
                   <li><button onClick={() => setActiveView('about')} className="hover:text-mint transition-colors">About</button></li>
                 </ul>
@@ -533,6 +551,30 @@ function Features() {
           <p className="text-white/40 text-sm md:text-base leading-relaxed font-medium">{f.desc}</p>
         </div>
       ))}
+    </div>
+  );
+}
+
+function PaymentBanner({ user }: { user: AuthUser | null }) {
+  const [visible, setVisible] = useState(false);
+  const [message, setMessage] = useState('');
+
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('payment') === 'success') {
+      const plan = user?.plan || 'pro';
+      setMessage(`You're now on the ${plan.charAt(0).toUpperCase() + plan.slice(1)} plan. Welcome to Safroi ${plan.charAt(0).toUpperCase() + plan.slice(1)}.`);
+      setVisible(true);
+      window.history.replaceState({}, document.title, '/dashboard');
+    }
+  }, [user]);
+
+  if (!visible) return null;
+
+  return (
+    <div className="p-4 rounded-xl bg-mint/10 border border-mint/20 flex items-center justify-between">
+      <p className="text-mint text-sm font-bold">{message}</p>
+      <button onClick={() => setVisible(false)} className="text-mint/60 hover:text-mint text-xs font-bold uppercase">Dismiss</button>
     </div>
   );
 }

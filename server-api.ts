@@ -15,6 +15,8 @@ import { analyzeText, analyzeImage, translateText } from "./src/services/ai";
 import { generateResetToken, hashResetToken, sendPasswordResetEmail } from "./src/services/email";
 import { securityHeaders, corsStrict, rateLimit, rateLimitAuth } from "./src/middleware/security";
 import { validate, signupSchema, loginSchema, resetSchema, resetConfirmSchema, analyzeSchema, translateSchema, speakSchema, ocrSchema } from "./src/middleware/validate";
+import paystackRouter from "./src/routes/paystack";
+import lemonsqueezyRouter from "./src/routes/lemonsqueezy";
 
 const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
 const PORT = Number(process.env.PORT) || 8080;
@@ -200,13 +202,24 @@ async function startServer() {
 
   // CORS — restricted to known origins
   app.use(cors({ origin: corsStrict, credentials: true, methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'], maxAge: 86400 }));
-  app.use(express.json({ limit: '10mb' }));
+  app.use(express.json({
+    limit: '10mb',
+    verify: (req: any, _res, buf) => {
+      if (req.url?.startsWith('/api/paystack/webhook') || req.url?.startsWith('/api/lemonsqueezy/webhook')) {
+        req.rawBody = buf.toString();
+      }
+    },
+  }));
 
   // Rate limiting
   app.use('/api', rateLimit(60, 60000));
 
   // Strip server identity
   app.use((_req, res, next) => { res.removeHeader('X-Powered-By'); next(); });
+
+  // Payment routers
+  app.use('/api/paystack', paystackRouter);
+  app.use('/api/lemonsqueezy', lemonsqueezyRouter);
 
   app.get("/api/health", (_, res) => res.json({ status: "ok", service: "Safroi API", env: { hasGeminiKey: !!(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY), nodeEnv: process.env.NODE_ENV } }));
   app.get("/api/ping", (_, res) => res.send("pong"));
