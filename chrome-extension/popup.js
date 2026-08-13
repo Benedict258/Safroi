@@ -524,6 +524,9 @@ function displayResult(data) {
       btn.disabled = false;
     };
 
+    // Translation support
+    setupTranslation(data);
+
     // Policy update notification
     if (data.policyUpdated) {
       const banner = document.createElement('div');
@@ -560,47 +563,130 @@ function displayResult(data) {
     const updateView = () => {
         legalBtn.className = 'view-btn' + (viewMode === 'legal' ? ' active' : '');
         plainBtn.className = 'view-btn' + (viewMode === 'plain' ? ' active' : '');
-        renderRisks(data.risks || [], viewMode);
+        renderRisks(data.risks || [], viewMode, data._translatedRisks || null);
     };
     legalBtn.onclick = () => { viewMode = 'legal'; updateView(); };
     plainBtn.onclick = () => { viewMode = 'plain'; updateView(); };
 
-    renderRisks(data.risks || [], viewMode);
-    renderActions(data.actions);
+    renderRisks(data.risks || [], viewMode, null);
+    renderActions(data.actions, null);
 }
 
-function renderRisks(risks, viewMode) {
+function renderRisks(risks, viewMode, translatedRisks) {
     riskList.innerHTML = '';
-    risks.slice(0, 3).forEach(risk => {
+    risks.slice(0, 3).forEach((risk, index) => {
         const div = document.createElement('div');
         div.className = `risk-item ${risk.severity}`;
-        const explanation = viewMode === 'plain' && risk.plain_explanation ? risk.plain_explanation : risk.description;
+        const t = translatedRisks && translatedRisks[index];
+        const explanation = t ? t.explanation : (viewMode === 'plain' && risk.plain_explanation ? risk.plain_explanation : risk.description);
         const label = viewMode === 'plain' ? 'PLAIN LANGUAGE' : 'LEGAL EXPLANATION';
         div.innerHTML = `
-            <div class="risk-title">${risk.title}</div>
+            <div class="risk-title">${t ? t.title : risk.title}</div>
             ${risk.category_tag ? `<div class="risk-meta"><span class="risk-category">${risk.category_tag}</span></div>` : ''}
             <div style="font-size:8px;font-weight:800;text-transform:uppercase;color:var(--muted);margin-bottom:2px;">${label}</div>
             <div class="risk-desc">${explanation}</div>
-            ${risk.impact_line ? `<div class="risk-impact">"${risk.impact_line}"</div>` : ''}
+            ${(t && t.impact) || risk.impact_line ? `<div class="risk-impact">"${t ? t.impact : risk.impact_line}"</div>` : ''}
         `;
         riskList.appendChild(div);
     });
 }
 
-function renderActions(actions) {
+function renderActions(actions, translatedActions) {
     const container = document.getElementById('actionsContainer');
     if (!actions || actions.length === 0) { container.style.display = 'none'; return; }
     container.style.display = 'block';
     const list = document.getElementById('actionsList');
     list.innerHTML = '';
-    actions.forEach(a => {
+    actions.forEach((a, i) => {
+        const t = translatedActions && translatedActions[i];
         const urgencyColors = { high: '#EF4444', medium: '#F59E0B', low: '#22C55E' };
         list.innerHTML += `
             <div class="risk-item" style="border-left: 3px solid ${urgencyColors[a.urgency] || '#666'}">
-                <div class="risk-title">${a.title}</div>
+                <div class="risk-title">${t ? t.title : a.title}</div>
                 <span style="font-size:8px;font-weight:800;text-transform:uppercase;color:${urgencyColors[a.urgency]};margin-bottom:4px;display:block;">${a.urgency} priority</span>
-                <div class="risk-desc">${a.advice}</div>
+                <div class="risk-desc">${t ? t.advice : a.advice}</div>
             </div>
         `;
     });
+}
+
+function setupTranslation(data) {
+    const translateBtn = document.getElementById('translateBtn');
+    const langSelect = document.getElementById('langSelect');
+    let isTranslated = false;
+
+    translateBtn.onclick = async () => {
+        if (isTranslated) {
+            // Revert to original
+            isTranslated = false;
+            translateBtn.textContent = 'Translate';
+            data._translatedRisks = null;
+            data._translatedSummary = null;
+            data._translatedActions = null;
+            document.getElementById('summaryText').textContent = data.summary;
+            renderRisks(data.risks || [], 'legal', null);
+            renderActions(data.actions, null);
+            return;
+        }
+
+        const lang = langSelect.value;
+        if (lang === 'English') {
+            isTranslated = false;
+            return;
+        }
+
+        translateBtn.textContent = '...';
+        translateBtn.disabled = true;
+
+        try {
+            // Translate summary
+            const summaryResult = await translateApi(data.summary, lang);
+            data._translatedSummary = summaryResult;
+            document.getElementById('summaryText').textContent = summaryResult;
+
+            // Translate risks in parallel
+            const riskPromises = (data.risks || []).map(async (risk) => ({
+                title: await translateApi(risk.title, lang),
+                explanation: await translateApi(risk.plain_explanation || risk.description, lang),
+                impact: risk.impact_line ? await translateApi(risk.impact_line, lang) : '',
+            }));
+            data._translatedRisks = await Promise.all(riskPromises);
+            renderRisks(data.risks || [], 'plain', data._translatedRisks);
+
+            // Translate actions
+            if (data.actions && data.actions.length > 0) {
+                const actionPromises = data.actions.map(async (a) => ({
+                    title: await translateApi(a.title, lang),
+                    advice: await translateApi(a.advice, lang),
+                }));
+                data._translatedActions = await Promise.all(actionPromises);
+                renderActions(data.actions, data._translatedActions);
+            }
+
+            isTranslated = true;
+            translateBtn.textContent = 'Original';
+        } catch (err) {
+            console.error('Translation failed:', err);
+            translateBtn.textContent = 'Translate';
+        } finally {
+            translateBtn.disabled = false;
+        }
+    };
+}
+
+async function translateApi(text, targetLanguage) {
+    if (!text || text.length < 3) return text;
+    const cleanBase = BASE_URL.endsWith('/') ? BASE_URL.slice(0, -1) : BASE_URL;
+    try {
+        const response = await fetch(`${cleanBase}/api/translate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, targetLanguage })
+        });
+        if (!response.ok) return text;
+        const data = await response.json();
+        return data.translatedText || text;
+    } catch {
+        return text;
+    }
 }

@@ -18,6 +18,13 @@ export interface Risk {
   category_tag?: string;
 }
 
+export interface ClauseLocation {
+  clauseText: string;
+  severity: Severity;
+  pageIndex: number;
+  bbox: { x0: number; y0: number; x1: number; y1: number } | null;
+}
+
 export interface AnalysisResult {
   id: string;
   timestamp: number;
@@ -31,6 +38,8 @@ export interface AnalysisResult {
   key_points?: string[];
   original_text?: string;
   highlightedImageUrl?: string;
+  clauseLocations?: ClauseLocation[];
+  pageCount?: number;
 }
 
 export interface HistoryItem {

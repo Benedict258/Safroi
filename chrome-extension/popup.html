@@ -242,6 +242,29 @@
     }
     input:checked + .slider { background-color: #22C55E; }
     input:checked + .slider:before { transform: translateX(20px); }
+
+    /* Translation controls */
+    .translate-bar {
+      display: flex; align-items: center; gap: 6px;
+      margin-bottom: 14px; padding: 8px 10px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+    .translate-bar select {
+      flex: 1; background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+      border-radius: 8px; padding: 6px 8px; color: white; font-size: 11px;
+      font-weight: 700; cursor: pointer; outline: none;
+    }
+    .translate-bar select option { background: var(--bg); color: white; }
+    .translate-btn {
+      background: var(--mint); color: var(--bg); border: none;
+      padding: 6px 12px; border-radius: 8px; font-size: 10px;
+      font-weight: 800; cursor: pointer; white-space: nowrap;
+      transition: transform 0.2s;
+    }
+    .translate-btn:hover { transform: scale(1.05); }
+    .translate-btn:disabled { opacity: 0.5; cursor: not-allowed; }
   </style>
 </head>
 <body>
@@ -324,6 +347,18 @@
       </div>
       <div class="summary" id="summaryText"></div>
       <button id="speakBtn" style="display:none;width:100%;background:transparent;border:1px solid var(--border);color:var(--muted);padding:6px;border-radius:8px;font-size:10px;font-weight:800;cursor:pointer;margin-bottom:16px;">Read Aloud</button>
+      <div class="translate-bar">
+        <select id="langSelect">
+          <option value="English">English</option>
+          <option value="Hausa">Hausa</option>
+          <option value="Yoruba">Yoruba</option>
+          <option value="Igbo">Igbo</option>
+          <option value="French">French</option>
+          <option value="German">German</option>
+          <option value="Japanese">Japanese</option>
+        </select>
+        <button id="translateBtn" class="translate-btn">Translate</button>
+      </div>
       <div class="view-toggle" id="viewToggle" style="display:flex; gap:6px; margin-bottom:16px;">
         <button id="legalViewBtn" class="view-btn active">Legal View</button>
         <button id="plainViewBtn" class="view-btn">Plain View</button>

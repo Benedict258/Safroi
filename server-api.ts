@@ -10,8 +10,11 @@ import AdmZip from "adm-zip";
 import { connectDB } from "./src/db/index";
 import { User, Analysis } from "./src/db/models";
 import mongoose from "mongoose";
-import { ocrImage, highlightImage } from "./src/ocr/index";
+import { ocrImage, highlightImage, type ClauseLocation } from "./src/ocr/index";
 import { analyzeText, analyzeImage, translateText } from "./src/services/ai";
+import { generateResetToken, hashResetToken, sendPasswordResetEmail } from "./src/services/email";
+import { securityHeaders, corsStrict, rateLimit, rateLimitAuth } from "./src/middleware/security";
+import { validate, signupSchema, loginSchema, resetSchema, resetConfirmSchema, analyzeSchema, translateSchema, speakSchema, ocrSchema } from "./src/middleware/validate";
 
 const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
 const PORT = Number(process.env.PORT) || 8080;
@@ -57,8 +60,11 @@ function isRefusal(text: string): boolean {
 
 function validateEnv() {
   const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-  if (!key) { console.warn('GEMINI_API_KEY not set.'); return false; }
-  console.log('Gemini API key found.');
+  if (!key) { console.warn('GEMINI_API_KEY not set.'); }
+  else { console.log('Gemini API key found.'); }
+  const mongoUri = process.env.MONGODB_URI;
+  if (!mongoUri) { console.warn('MONGODB_URI not set. History and caching will be unavailable.'); }
+  else { console.log('MongoDB URI found.'); }
   return true;
 }
 
@@ -188,14 +194,25 @@ async function fetchWebsiteContent(inputUrl: string) {
 async function startServer() {
   validateEnv();
   const app = express();
-  app.use(cors({ origin: (_, cb) => cb(null, true), credentials: true }));
+
+  // Security headers
+  app.use(securityHeaders);
+
+  // CORS — restricted to known origins
+  app.use(cors({ origin: corsStrict, credentials: true, methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'], maxAge: 86400 }));
   app.use(express.json({ limit: '10mb' }));
+
+  // Rate limiting
+  app.use('/api', rateLimit(60, 60000));
+
+  // Strip server identity
+  app.use((_req, res, next) => { res.removeHeader('X-Powered-By'); next(); });
 
   app.get("/api/health", (_, res) => res.json({ status: "ok", service: "Safroi API", env: { hasGeminiKey: !!(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY), nodeEnv: process.env.NODE_ENV } }));
   app.get("/api/ping", (_, res) => res.send("pong"));
 
   // Auth
-  app.post("/api/auth/signup", async (req, res) => {
+  app.post("/api/auth/signup", rateLimitAuth(5, 300000), validate(signupSchema), async (req, res) => {
     try {
       const { email, password, name } = req.body;
       if (!email || !password || !name) return res.status(400).json({ error: "Email, password, and name required." });
@@ -207,7 +224,7 @@ async function startServer() {
     } catch (err) { res.status(400).json({ error: err instanceof Error ? err.message : "Signup failed." }); }
   });
 
-  app.post("/api/auth/login", async (req, res) => {
+  app.post("/api/auth/login", rateLimitAuth(10, 300000), validate(loginSchema), async (req, res) => {
     try {
       const { email, password } = req.body;
       if (!email || !password) return res.status(400).json({ error: "Email and password required." });
@@ -219,10 +236,54 @@ async function startServer() {
     } catch (err) { res.status(401).json({ error: "Login failed." }); }
   });
 
-  app.post("/api/auth/reset", async (req, res) => {
-    const { email } = req.body;
-    if (!email) return res.status(400).json({ error: "Email required." });
-    res.json({ message: "If that email exists, a reset link has been sent." });
+  app.post("/api/auth/reset", rateLimitAuth(5, 300000), validate(resetSchema), async (req, res) => {
+    try {
+      const { email } = req.body;
+      if (!email) return res.status(400).json({ error: "Email required." });
+
+      const user = await User.findOne({ email: email.toLowerCase() } as any);
+      if (!user) {
+        return res.json({ message: "If that email exists, a reset link has been sent." });
+      }
+
+      const { token, hash, expiresAt } = generateResetToken();
+      await User.findOneAndUpdate(
+        { _id: user._id } as any,
+        { resetToken: hash, resetTokenExpiry: expiresAt },
+      );
+
+      await sendPasswordResetEmail(user.email, user.displayName, token);
+
+      res.json({ message: "If that email exists, a reset link has been sent." });
+    } catch (err) {
+      console.error("Reset error:", err);
+      res.status(500).json({ error: "Reset failed." });
+    }
+  });
+
+  app.post("/api/auth/reset/confirm", validate(resetConfirmSchema), async (req, res) => {
+    try {
+      const { token, newPassword } = req.body;
+      if (!token || !newPassword) return res.status(400).json({ error: "Token and new password required." });
+      if (newPassword.length < 6) return res.status(400).json({ error: "Password must be at least 6 characters." });
+
+      const hash = hashResetToken(token);
+      const user = await User.findOne({ resetToken: hash } as any);
+
+      if (!user || !user.resetTokenExpiry || new Date(user.resetTokenExpiry) < new Date()) {
+        return res.status(400).json({ error: "Invalid or expired reset token." });
+      }
+
+      await User.findOneAndUpdate(
+        { _id: user._id } as any,
+        { password: newPassword, resetToken: null, resetTokenExpiry: null },
+      );
+
+      res.json({ message: "Password reset successful. You can now sign in." });
+    } catch (err) {
+      console.error("Reset confirm error:", err);
+      res.status(500).json({ error: "Reset confirmation failed." });
+    }
   });
 
   app.get("/api/auth/me", authMiddleware, async (req, res) => {
@@ -251,7 +312,7 @@ Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string"
     try { (Analysis as any).findOneAndUpdate({ _id: `cache_${key}` }, { _id: `cache_${key}`, type: 'cache', userId: 'system', title: 'Cached', summary: '', risk_score: 0, risks: [], cachedResult: data, cacheExpiry: new Date(Date.now() + 86400000) }, { upsert: true, returnDocument: 'after' }); } catch {}
   }
 
-  app.post("/api/analyze", async (req, res) => {
+  app.post("/api/analyze", validate(analyzeSchema), async (req, res) => {
     try {
       let { type, value, title, url } = req.body;
       if (url && !value) { value = url; type = 'website'; }
@@ -317,7 +378,7 @@ Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string"
     } catch (err) { res.status(500).json({ error: err instanceof Error ? err.message : "Analysis failed." }); }
   });
 
-  app.post("/api/translate", async (req, res) => {
+  app.post("/api/translate", validate(translateSchema), async (req, res) => {
     try {
       const { text, targetLanguage } = req.body;
       if (!text || !targetLanguage) return res.status(400).json({ error: "Text and language required." });
@@ -327,7 +388,7 @@ Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string"
 
   // TTS — Google Translate free TTS (no API key needed)
   const LANG_MAP: Record<string, string> = { English: 'en', Hausa: 'ha', Yoruba: 'en', Igbo: 'en', French: 'fr', German: 'de', Japanese: 'ja' };
-  app.post("/api/speak", async (req, res) => {
+  app.post("/api/speak", validate(speakSchema), async (req, res) => {
     try {
       const { text, language } = req.body;
       if (!text || !language) return res.status(400).json({ error: "Text and language required." });
@@ -348,7 +409,7 @@ Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string"
     } catch { res.status(500).json({ error: "TTS failed." }); }
   });
 
-  app.post("/api/ocr-analyze", async (req, res) => {
+  app.post("/api/ocr-analyze", validate(ocrSchema), async (req, res) => {
     try {
       const { image, useDirectImage } = req.body;
       if (!image) return res.status(400).json({ error: "Image required." });
@@ -356,15 +417,33 @@ Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string"
       const mime = image.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
       const prompt = `You are a contract detective protecting gig workers and tenants. Analyze this contract photo. Return ONLY valid JSON (no markdown): {"summary":"string","risk_score":number(1-10),"risks":[{"clause":"string","risk":"string","severity":"low|medium|high","plain_explanation":"string","impact_line":"string","category_tag":"string"}],"actions":[{"title":"string","advice":"string","urgency":"string"}]}`;
       let raw: string;
+      let ocrResult: { text: string; words: any[]; pageCount: number } | null = null;
       if (useDirectImage) {
         raw = await analyzeImage(base64, mime, prompt);
       } else {
-        const ocr = await ocrImage(Buffer.from(base64, 'base64'));
-        raw = await analyzeText(`Analyze contract. Return ONLY valid JSON with summary, risk_score, risks[].\nCONTRACT TEXT:\n${ocr.text}`);
+        ocrResult = await ocrImage(Buffer.from(base64, 'base64'));
+        console.log(`[OCR] Extracted ${ocrResult.text.length} chars from ${ocrResult.pageCount} page(s)`);
+        raw = await analyzeText(`Analyze this employment contract or lease. Return ONLY valid JSON with summary, risk_score, risks[{clause,risk,severity,plain_explanation,impact_line,category_tag}].\n\nCONTRACT TEXT:\n${ocrResult.text}`);
       }
       const parsed = safeParseJSON(extractJSON(raw));
       const risks = (parsed.risks || []).map((r: any) => ({ title: r.clause, description: r.risk, severity: (r.severity || "medium").toLowerCase() || 'medium', plain_explanation: r.plain_explanation, impact_line: r.impact_line, category_tag: r.category_tag }));
-      res.json({ id: crypto.randomUUID(), timestamp: Date.now(), type: 'contract', title: "Scanned Document", summary: parsed.summary, risk_score: parsed.risk_score || 1, risks, path: useDirectImage ? 'multimodal' : 'ocr' });
+
+      let clauseLocations: ClauseLocation[] | undefined;
+      if (ocrResult && !useDirectImage) {
+        const clauses = risks.map((r: any) => ({ text: r.title || r.description || '', severity: (r.severity || 'medium') as 'low' | 'medium' | 'high' }));
+        const { locations } = await highlightImage(
+          Buffer.from(base64, 'base64'),
+          ocrResult.words,
+          clauses
+        );
+        clauseLocations = locations;
+      }
+
+      res.json({
+        id: crypto.randomUUID(), timestamp: Date.now(), type: 'contract', title: "Scanned Document",
+        summary: parsed.summary, risk_score: parsed.risk_score || 1, risks, path: useDirectImage ? 'multimodal' : 'ocr',
+        clauseLocations, pageCount: ocrResult?.pageCount || 1,
+      });
     } catch (err) { res.status(500).json({ error: err instanceof Error ? err.message : "OCR failed." }); }
   });
 
@@ -402,7 +481,34 @@ Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string"
     catch { res.status(500).json({ error: "Delete failed." }); }
   });
 
-  app.listen(PORT, "0.0.0.0", () => { console.log(`Safroi API running on port ${PORT}`); connectDB().then(ok => { if (!ok) console.warn('[MongoDB] Running without database.'); }); });
+  // Global error handler — never leak stack traces in production
+  app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error("Unhandled Server Error:", err);
+    res.status(500).json({
+      error: "Internal Server Error",
+      message: process.env.NODE_ENV === 'production' ? "An unexpected error occurred" : (err.message || "An unexpected error occurred"),
+    });
+  });
+
+  const server = app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Safroi API running on port ${PORT}`);
+    connectDB().then(ok => { if (!ok) console.warn('[MongoDB] Running without database.'); });
+  });
+
+  // Graceful shutdown
+  const shutdown = (signal: string) => {
+    console.log(`\n[${signal}] Shutting down gracefully...`);
+    server.close(() => {
+      console.log('[Shutdown] HTTP server closed.');
+      process.exit(0);
+    });
+    setTimeout(() => {
+      console.error('[Shutdown] Forced exit after timeout.');
+      process.exit(1);
+    }, 10000);
+  };
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
 startServer();
