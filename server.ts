@@ -17,6 +17,7 @@ import { securityHeaders, corsStrict, rateLimit, rateLimitAuth } from "./src/mid
 import { validate, signupSchema, loginSchema, resetSchema, resetConfirmSchema, analyzeSchema, translateSchema, speakSchema, ocrSchema } from "./src/middleware/validate";
 import paystackRouter from "./src/routes/paystack";
 import lemonsqueezyRouter from "./src/routes/lemonsqueezy";
+import documentsRouter from "./src/routes/documents";
 
 const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
 
@@ -351,6 +352,9 @@ async function startServer() {
   // Payment routers
   app.use('/api/paystack', paystackRouter);
   app.use('/api/lemonsqueezy', lemonsqueezyRouter);
+
+  // Document chat routers
+  app.use('/api/documents', documentsRouter);
 
   // API endpoint for health check
   app.get("/api/health", (req, res) => {

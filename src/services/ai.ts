@@ -2,6 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 
 const MODEL = process.env.GEMINI_MODEL || "gemma-4-26b-a4b-it";
 const FALLBACK_MODEL = "gemma-4-31b-it";
+const EMBEDDING_MODEL = "text-embedding-004";
 
 let client: GoogleGenAI | null = null;
 
@@ -69,11 +70,25 @@ export async function translateText(text: string, targetLanguage: string): Promi
     });
     const raw = res.text?.trim() || '';
     if (!raw || raw.length < 3) return text;
-    // Strip thinking prefix (starts with * or Source sentence:)
     const cleaned = raw.replace(/^[\s\S]*?\n\n/, '').replace(/^\*.*?\n/g, '').trim();
     if (!cleaned || cleaned.length < 3 || cleaned === text) return text;
     return cleaned;
   } catch {
     return text;
   }
+}
+
+export async function generateEmbedding(text: string): Promise<number[]> {
+  const ai = getClient();
+  try {
+    const res = await ai.models.embedContent({
+      model: EMBEDDING_MODEL,
+      contents: { parts: [{ text }] },
+    });
+    return res.embeddings?.[0]?.values || [];
+  } catch (err) {
+    console.error('[Embedding] Error:', err);
+    throw err;
+  }
+}
 }

@@ -4,7 +4,7 @@ import { cn } from '../lib/utils';
 import type { AuthUser } from '../services/auth';
 
 interface HeaderProps {
-  onNavigate: (view: 'home' | 'dashboard' | 'history' | 'about' | 'pricing') => void;
+  onNavigate: (view: 'home' | 'dashboard' | 'history' | 'about' | 'pricing' | 'document-chat') => void;
   activeView: string;
   user: AuthUser | null;
   onLogin: () => void;
@@ -21,6 +21,7 @@ export function Header({ onNavigate, activeView, user, onLogin, onLogout }: Head
 
   const menuItems = [
     { label: 'Analyzer', view: 'dashboard' as const },
+    { label: 'Document Chat', view: 'document-chat' as const },
     { label: 'Pricing', view: 'pricing' as const },
     { label: 'History', view: 'history' as const },
     { label: 'About', view: 'about' as const },

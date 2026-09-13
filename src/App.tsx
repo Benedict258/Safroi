@@ -6,6 +6,7 @@ import { HistoryView } from './components/HistoryView';
 import { Legal } from './components/Legal';
 import { Pricing } from './pages/Pricing';
 import { PaystackCallback, LemonSqueezySuccess } from './pages/PaymentResults';
+import { DocumentChatPage } from './pages/DocumentChat';
 import { analyzeWebsite, analyzeContract } from './services/groq';
 import { AnalysisResult } from './types';
 import { useHistory } from './hooks/useHistory';
@@ -15,7 +16,7 @@ import { login, signup, requestReset, logout, getStoredUser, getMe } from './ser
 import type { AuthUser } from './services/auth';
 
 export default function App() {
-  const [activeView, setActiveView] = useState<'home' | 'dashboard' | 'history' | 'about' | 'legal' | 'pricing' | 'paystack-callback' | 'lemonsqueezy-success'>('home');
+  const [activeView, setActiveView] = useState<'home' | 'dashboard' | 'history' | 'about' | 'legal' | 'pricing' | 'paystack-callback' | 'lemonsqueezy-success' | 'document-chat'>('home');
   const [currentResult, setCurrentResult] = useState<AnalysisResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [user, setUser] = useState<AuthUser | null>(getStoredUser);
@@ -331,6 +332,9 @@ export default function App() {
         {activeView === 'pricing' && (
           <Pricing user={user} onLogin={() => setShowAuthModal(true)} onNavigate={(v) => setActiveView(v as any)} />
         )}
+        {activeView === 'document-chat' && (
+          <DocumentChatPage user={user} onNavigate={(v) => setActiveView(v as any)} />
+        )}
         {activeView === 'paystack-callback' && <PaystackCallback />}
         {activeView === 'lemonsqueezy-success' && <LemonSqueezySuccess />}
       </main>
@@ -347,6 +351,7 @@ export default function App() {
                 <h4 className="text-xs font-black uppercase tracking-widest text-white/20">Product</h4>
                 <ul className="space-y-2 text-sm font-bold">
                   <li><button onClick={() => setActiveView('dashboard')} className="hover:text-mint transition-colors">Analyzer</button></li>
+                  <li><button onClick={() => setActiveView('document-chat')} className="hover:text-mint transition-colors">Document Chat</button></li>
                   <li><button onClick={() => setActiveView('pricing')} className="hover:text-mint transition-colors">Pricing</button></li>
                   <li><button onClick={() => setActiveView('history')} className="hover:text-mint transition-colors">History</button></li>
                   <li><button onClick={() => setActiveView('about')} className="hover:text-mint transition-colors">About</button></li>

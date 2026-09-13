@@ -17,6 +17,7 @@ import { securityHeaders, corsStrict, rateLimit, rateLimitAuth } from "./src/mid
 import { validate, signupSchema, loginSchema, resetSchema, resetConfirmSchema, analyzeSchema, translateSchema, speakSchema, ocrSchema } from "./src/middleware/validate";
 import paystackRouter from "./src/routes/paystack";
 import lemonsqueezyRouter from "./src/routes/lemonsqueezy";
+import documentsRouter from "./src/routes/documents";
 
 const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
 const PORT = Number(process.env.PORT) || 8080;
@@ -220,6 +221,9 @@ async function startServer() {
   // Payment routers
   app.use('/api/paystack', paystackRouter);
   app.use('/api/lemonsqueezy', lemonsqueezyRouter);
+
+  // Document chat routers
+  app.use('/api/documents', documentsRouter);
 
   app.get("/api/health", (_, res) => res.json({ status: "ok", service: "Safroi API", env: { hasGeminiKey: !!(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY), nodeEnv: process.env.NODE_ENV } }));
   app.get("/api/ping", (_, res) => res.send("pong"));
