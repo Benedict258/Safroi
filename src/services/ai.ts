@@ -2,7 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 
 const MODEL = process.env.GEMINI_MODEL || "gemma-4-26b-a4b-it";
 const FALLBACK_MODEL = "gemma-4-31b-it";
-const EMBEDDING_MODEL = "text-embedding-004";
+const EMBEDDING_MODEL = process.env.EMBEDDING_MODEL || "text-embedding-004";
 
 let client: GoogleGenAI | null = null;
 
