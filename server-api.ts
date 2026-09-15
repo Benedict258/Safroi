@@ -19,7 +19,11 @@ import paystackRouter from "./src/routes/paystack";
 import lemonsqueezyRouter from "./src/routes/lemonsqueezy";
 import documentsRouter from "./src/routes/documents";
 
-const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('FATAL: JWT_SECRET environment variable is required');
+  process.exit(1);
+}
 const PORT = Number(process.env.PORT) || 8080;
 
 function signToken(userId: string) {
