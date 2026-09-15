@@ -9,10 +9,18 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
     }
 
     const token = authHeader.substring(7);
-    const secret = process.env.JWT_SECRET || 'fallback-secret';
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      return res.status(500).json({ error: 'Server configuration error' });
+    }
     
     const decoded = jwt.verify(token, secret) as any;
-    (req as any).user = { uid: decoded.uid || decoded.sub };
+    // Support both legacy uid and userId payloads
+    const userId = decoded.uid || decoded.userId || decoded.sub;
+    if (!userId) {
+      return res.status(401).json({ error: 'Invalid token payload' });
+    }
+    (req as any).user = { uid: userId };
     
     next();
   } catch (err) {
