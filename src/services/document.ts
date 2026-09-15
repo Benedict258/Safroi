@@ -67,7 +67,7 @@ function cosineSimilarity(a: number[], b: number[]): number {
 }
 
 export async function ingestDocument(userId: string, params: {
-  sourceType: 'upload' | 'url' | 'text' | 'image';
+  sourceType: 'upload' | 'url' | 'text' | 'image' | 'analysis';
   value: string;
   fileName?: string;
   mimeType?: string;
@@ -82,7 +82,7 @@ export async function ingestDocument(userId: string, params: {
       const result = await fetchWebsiteContent(params.value);
       text = result.content;
       title = title || result.title || 'Web Page';
-    } else if (params.sourceType === 'text') {
+    } else if (params.sourceType === 'text' || params.sourceType === 'analysis') {
       text = params.value;
     } else {
       const buffer = Buffer.from(params.value, 'base64');

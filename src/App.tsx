@@ -19,6 +19,7 @@ export default function App() {
   const [activeView, setActiveView] = useState<'home' | 'dashboard' | 'history' | 'about' | 'legal' | 'pricing' | 'paystack-callback' | 'lemonsqueezy-success' | 'document-chat'>('home');
   const [currentResult, setCurrentResult] = useState<AnalysisResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSavingToChat, setIsSavingToChat] = useState(false);
   const [user, setUser] = useState<AuthUser | null>(getStoredUser);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -54,7 +55,7 @@ export default function App() {
     return () => {};
   }, []);
 
-  const handleAnalyze = async (data: { type: 'website' | 'contract', value: string, fileName?: string }) => {
+  const handleAnalyze = async (data: { type: 'website' | 'contract', value: string, fileName?: string, autoSave?: boolean }) => {
     if (!user) {
       setShowAuthModal(true);
       return;
@@ -71,12 +72,63 @@ export default function App() {
       }
       setCurrentResult(result);
       addToHistory(result);
+      if (data.autoSave) {
+        await handleSaveToChat(result);
+      }
     } catch (error) {
       console.error(error);
       const msg = error instanceof Error ? error.message : "Analysis failed. Please try again.";
       alert(msg);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSaveToChat = async (result?: AnalysisResult) => {
+    const res = result ?? currentResult;
+    if (!user || !res) return;
+    setIsSavingToChat(true);
+    try {
+      const BASE_URL = import.meta.env.VITE_API_URL || '';
+      // Build document text from analysis
+      const docText = [
+        `Title: ${res.title}`,
+        `Type: ${res.type}`,
+        `Risk Score: ${res.risk_score}/10`,
+        `Summary: ${res.summary}`,
+        '',
+        'Risks:',
+        ...res.risks.map(r => `- ${r.title} (${r.severity}): ${r.description}${r.plain_explanation ? ' | ' + r.plain_explanation : ''}${r.impact_line ? ' | Impact: ' + r.impact_line : ''}`)
+      ].join('\n');
+      const payload = {
+        type: 'analysis',
+        value: docText,
+        title: res.title,
+        fileName: res.type === 'website' ? (res.url ? new URL(res.url).hostname : 'website') : res.title,
+        mimeType: 'text/plain'
+      };
+      const resp = await fetch(`${BASE_URL}/api/documents/ingest`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user.token}`
+        },
+        body: JSON.stringify(payload)
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to save to chat');
+      }
+      const data = await resp.json();
+      // Redirect to Document Chat with new doc selected and banner
+      setActiveView('document-chat');
+      window.history.pushState({}, '', `/document-chat?docId=${data.documentId}&fromAnalysis=1`);
+      // Also update active view handled by effect? We'll just set active view.
+    } catch (err) {
+      console.error(err);
+      alert(err instanceof Error ? err.message : 'Failed to save to chat');
+    } finally {
+      setIsSavingToChat(false);
     }
   };
 
@@ -313,7 +365,7 @@ export default function App() {
                 >
                   ← Back to analyzer
                 </button>
-                <ResultView result={currentResult} />
+                <ResultView result={currentResult} onSaveToChat={() => handleSaveToChat(currentResult)} isSaving={isSavingToChat} />
               </div>
             )}
           </div>

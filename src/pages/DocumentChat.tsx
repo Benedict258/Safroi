@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { DocumentChat } from '../components/DocumentChat';
 import type { AuthUser } from '../services/auth';
 
@@ -8,6 +8,21 @@ interface DocumentChatPageProps {
 }
 
 export function DocumentChatPage({ user, onNavigate }: DocumentChatPageProps) {
+  const [initialDocId, setInitialDocId] = useState<string | null>(null);
+  const [showBanner, setShowBanner] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const docId = params.get('docId');
+    const fromAnalysis = params.get('fromAnalysis');
+    if (docId) setInitialDocId(docId);
+    if (fromAnalysis === '1') setShowBanner(true);
+    // Clean URL
+    if (docId || fromAnalysis) {
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
+
   if (!user) {
     return (
       <div className="text-center py-12">
@@ -33,7 +48,7 @@ export function DocumentChatPage({ user, onNavigate }: DocumentChatPageProps) {
         </p>
       </div>
       
-      <DocumentChat user={user} />
+      <DocumentChat user={user} initialDocId={initialDocId} showFromAnalysisBanner={showBanner} />
     </div>
   );
 }

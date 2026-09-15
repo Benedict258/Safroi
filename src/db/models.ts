@@ -38,7 +38,7 @@ const documentSchema = new mongoose.Schema({
   _id: { type: String, required: true },
   userId: { type: String, required: true, index: true },
   title: { type: String, required: true },
-  sourceType: { type: String, enum: ['upload','url','text','image'], required: true },
+  sourceType: { type: String, enum: ['upload','url','text','image','analysis'], required: true },
   sourceUrl: String,
   fileName: String,
   mimeType: String,

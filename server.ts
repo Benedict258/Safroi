@@ -326,7 +326,7 @@ async function startServer() {
     maxAge: 86400,
   }));
   app.use(express.json({
-    limit: '10mb',
+    limit: '50mb',
     verify: (req: any, _res, buf) => {
       if (req.url?.startsWith('/api/paystack/webhook') || req.url?.startsWith('/api/lemonsqueezy/webhook')) {
         req.rawBody = buf.toString();

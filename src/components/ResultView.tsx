@@ -7,9 +7,11 @@ import { motion, AnimatePresence } from 'motion/react';
 
 interface ResultViewProps {
   result: AnalysisResult;
+  onSaveToChat?: () => Promise<void>;
+  isSaving?: boolean;
 }
 
-export function ResultView({ result }: ResultViewProps) {
+export function ResultView({ result, onSaveToChat, isSaving }: ResultViewProps) {
   const [isTranslating, setIsTranslating] = useState(false);
   const [translatedSummary, setTranslatedSummary] = useState<string | null>(null);
   const [targetLang, setTargetLang] = useState('Hausa');
@@ -126,6 +128,22 @@ export function ResultView({ result }: ResultViewProps) {
             {result.risk_score <= 3 ? 'Safe' : result.risk_score <= 7 ? 'Caution' : 'Risky'}
           </div>
         </div>
+        {onSaveToChat && (
+          <button
+            onClick={onSaveToChat}
+            disabled={isSaving}
+            className="mt-4 md:mt-0 self-center md:self-start px-4 py-2 rounded-xl bg-mint text-[#050B10] font-black uppercase tracking-widest text-xs flex items-center gap-2 hover:scale-105 transition-all disabled:opacity-50"
+          >
+            {isSaving ? (
+              <>Saving...</>
+            ) : (
+              <>
+                <FileText className="h-4 w-4" />
+                Save to Chat
+              </>
+            )}
+          </button>
+        )}
       </div>
 
       {/* Summary with Translation */}

@@ -4,7 +4,7 @@ import { useDropzone } from 'react-dropzone';
 import { cn } from '../lib/utils';
 
 interface AnalysisFormProps {
-  onAnalyze: (data: { type: 'website' | 'contract', value: string, fileName?: string }) => void;
+  onAnalyze: (data: { type: 'website' | 'contract', value: string, fileName?: string, autoSave?: boolean }) => void;
   isLoading: boolean;
 }
 
@@ -13,6 +13,7 @@ export function AnalysisForm({ onAnalyze, isLoading }: AnalysisFormProps) {
   const [inputValue, setInputValue] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [urlError, setUrlError] = useState<string | null>(null);
+  const [autoSave, setAutoSave] = useState(false);
 
   const validateUrl = (url: string) => {
     try {
@@ -63,7 +64,8 @@ export function AnalysisForm({ onAnalyze, isLoading }: AnalysisFormProps) {
       onAnalyze({
         type: 'contract',
         value: inputValue,
-        fileName: selectedFile.name
+        fileName: selectedFile.name,
+        autoSave
       });
       return;
     }
@@ -81,7 +83,8 @@ export function AnalysisForm({ onAnalyze, isLoading }: AnalysisFormProps) {
 
     onAnalyze({
       type: activeTab === 'url' ? 'website' : 'contract',
-      value: inputValue
+      value: inputValue,
+      autoSave
     });
   };
 
@@ -205,6 +208,19 @@ export function AnalysisForm({ onAnalyze, isLoading }: AnalysisFormProps) {
               )}
             </div>
           )}
+ 
+          <div className="mt-6 flex items-center gap-3">
+            <input
+              id="autoSave"
+              type="checkbox"
+              checked={autoSave}
+              onChange={(e) => setAutoSave(e.target.checked)}
+              className="h-4 w-4 rounded border-white/20 bg-white/5 text-mint focus:ring-mint"
+            />
+            <label htmlFor="autoSave" className="text-sm font-medium text-white/60 cursor-pointer">
+              Auto-save analysis results to Document Chat
+            </label>
+          </div>
 
           <div className="mt-10 flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-3 text-white/40 text-sm font-medium">
