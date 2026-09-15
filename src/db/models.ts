@@ -83,6 +83,8 @@ export const Document = mongoose.models.Document || mongoose.model('Document', d
 export const Chunk = mongoose.models.Chunk || mongoose.model('Chunk', chunkSchema);
 export const ChatSession = mongoose.models.ChatSession || mongoose.model('ChatSession', chatSessionSchema);
 export const ChatMessage = mongoose.models.ChatMessage || mongoose.model('ChatMessage', chatMessageSchema);
+
+const riskSchema = new mongoose.Schema({
   title: String,
   description: String,
   severity: { type: String, enum: ['low', 'medium', 'high'] },
