@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: safroi-backend
+    env: node
+    region: oregon
+    branch: main
+    buildCommand: npm install && npm run build:api
+    startCommand: npm start:api
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 8080
