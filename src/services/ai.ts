@@ -1,4 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
+import { generateWithGLM5, analyzeContractWithGLM, checkImageSafety } from './nvidia-ai';
 
 const MODEL = process.env.GEMINI_MODEL || "gemma-4-26b-a4b-it";
 const FALLBACK_MODEL = "gemma-4-31b-it";
@@ -90,5 +91,20 @@ export async function generateEmbedding(text: string): Promise<number[]> {
     console.error('[Embedding] Error:', err);
     throw err;
   }
+}
+
+// NVIDIA NIM Integration for GLM-5.3
+export async function analyzeContractNIM(
+  contractText: string,
+  targetLanguage: string = 'English'
+): Promise<string> {
+  return analyzeContractWithGLM(contractText, targetLanguage);
+}
+
+export async function checkImageSafetyNIM(
+  imageBase64: string,
+  mimeType: string
+): Promise<{ safe: boolean; reasons?: string[] }> {
+  return checkImageSafety(imageBase64, mimeType);
 }
 
