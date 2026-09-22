@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
 
-const BASE_URL = import.meta.env.VITE_API_URL || '';
+const BASE_URL = "https://safroi.onrender.com";
 
 export function PaystackCallback() {
   const [status, setStatus] = useState<'loading' | 'success' | 'failed'>('loading');

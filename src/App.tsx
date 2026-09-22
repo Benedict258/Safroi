@@ -101,7 +101,7 @@ export default function App() {
     }
     setIsSavingToChat(true);
     try {
-      const BASE_URL = import.meta.env.VITE_API_URL || '';
+      const BASE_URL = "https://safroi.onrender.com";
       // Build hybrid document text: structured risk assessment + original contract text
       const sections: string[] = [
         '=== EXECUTIVE RISK ASSESSMENT & ANALYSIS ===',

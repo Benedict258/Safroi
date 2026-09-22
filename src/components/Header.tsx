@@ -15,7 +15,7 @@ export function Header({ onNavigate, activeView, user, onLogin, onLogout }: Head
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const handleDownload = () => {
-    const apiUrl = (import.meta as any).env?.VITE_API_URL || '';
+    const apiUrl = "https://safroi.onrender.com";
     window.location.href = `${apiUrl}/api/download-extension`;
   };
 

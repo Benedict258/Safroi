@@ -1,6 +1,6 @@
 import { AnalysisResult } from "../types";
 
-const BASE_URL = import.meta.env.VITE_API_URL || "";
+const BASE_URL = "https://safroi.onrender.com";
 
 export async function analyzeWebsite(url: string): Promise<AnalysisResult> {
   const response = await fetch(`${BASE_URL}/api/analyze`, {

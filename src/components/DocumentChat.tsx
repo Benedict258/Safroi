@@ -3,7 +3,7 @@ import { Send, Loader2, FileText, Upload } from 'lucide-react';
 import { useDocumentChat } from '../hooks/useDocumentChat';
 import type { AuthUser } from '../services/auth';
 
-const BASE_URL = import.meta.env.VITE_API_URL || '';
+const BASE_URL = "https://safroi.onrender.com";
 
 interface Document {
   _id: string;

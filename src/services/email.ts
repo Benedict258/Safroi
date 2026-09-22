@@ -5,7 +5,7 @@ const SMTP_PORT = Number(process.env.SMTP_PORT) || 587;
 const SMTP_USER = process.env.SMTP_USER || '';
 const SMTP_PASS = process.env.SMTP_PASS || '';
 const SMTP_FROM = process.env.SMTP_FROM || 'Safroi <noreply@safroi.com>';
-const APP_URL = process.env.APP_URL || process.env.VITE_API_URL || 'https://safroi.onrender.com';
+const APP_URL = "https://safroi.onrender.com";
 
 export function generateResetToken(): { token: string; hash: string; expiresAt: Date } {
   const token = crypto.randomBytes(32).toString('hex');

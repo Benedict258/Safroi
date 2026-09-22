@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 
-const BASE_URL = import.meta.env.VITE_API_URL || '';
+const BASE_URL = "https://safroi.onrender.com";
 
 interface ChatMessage {
   _id: string;
