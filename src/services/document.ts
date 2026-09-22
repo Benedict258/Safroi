@@ -16,8 +16,15 @@ export async function extractText(buffer: Buffer, mimeType: string): Promise<str
       return buffer.toString('utf-8');
     }
     if (mimeType === 'application/pdf') {
-      const data = await pdfParse(buffer);
-      return data.text;
+      try {
+        const data = await pdfParse(buffer);
+        return data.text;
+      } catch (pdfErr: any) {
+        if (pdfErr.message?.includes('XRef') || pdfErr.message?.includes('bad')) {
+          throw new Error('This PDF file appears to be corrupted or uses an unsupported format. Please try a different file or convert it to a standard PDF format.');
+        }
+        throw pdfErr;
+      }
     }
     if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
       const result = await mammoth.extractRawText({ buffer });
