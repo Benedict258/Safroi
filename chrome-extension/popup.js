@@ -10,7 +10,7 @@ async function detectEnvironment() {
         if (currentTab && currentTab.url) {
             const url = new URL(currentTab.url);
             // If we are currently ON a Safroi app domain, prioritize that origin
-            if (url.hostname.includes('run.app') || url.hostname.includes('suirify.com') || url.hostname.includes('onrender.com') || url.hostname.includes('vercel.app') || url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
+            if (url.hostname.includes('run.app') || url.hostname.includes('suirify.com') || url.hostname.includes('onrender.com') || url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
                 console.log("Safroi: Auto-detected environment from tab:", url.origin);
                 BASE_URL = url.origin;
                 return true; 

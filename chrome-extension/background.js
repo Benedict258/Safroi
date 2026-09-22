@@ -131,7 +131,7 @@ async function analyzeDomain(domain, fullUrl, favicon) {
         const currentTab = tabs[0];
         if (currentTab && currentTab.url) {
           const tabUrl = new URL(currentTab.url);
-          if (tabUrl.hostname.includes('run.app') || tabUrl.hostname.includes('suirify.com') || tabUrl.hostname.includes('onrender.com') || tabUrl.hostname.includes('vercel.app') || tabUrl.hostname === 'localhost') {
+          if (tabUrl.hostname.includes('run.app') || tabUrl.hostname.includes('suirify.com') || tabUrl.hostname.includes('onrender.com') || tabUrl.hostname === 'localhost') {
             const newBase = tabUrl.origin;
             if (newBase !== BASE_URL) {
               console.log("Background: Auto-updating BASE_URL to tab origin:", newBase);
