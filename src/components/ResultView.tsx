@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { AnalysisResult, Risk, ViewMode, Action } from '../types';
 import { AlertTriangle, Info, CheckCircle2, Globe, FileText, ChevronRight, Languages, Eye, BookOpen, Tag, Camera, Volume2, Loader2, ShieldCheck } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { translateText, speakText } from '../services/groq';
+import { translateText, translateBatch, speakText } from '../services/groq';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface ResultViewProps {
@@ -14,10 +14,12 @@ interface ResultViewProps {
 export function ResultView({ result, onSaveToChat, isSaving }: ResultViewProps) {
   const [isTranslating, setIsTranslating] = useState(false);
   const [translatedSummary, setTranslatedSummary] = useState<string | null>(null);
+  const [activeTranslatedLang, setActiveTranslatedLang] = useState<string | null>(null);
   const [targetLang, setTargetLang] = useState('Hausa');
   const [viewMode, setViewMode] = useState<ViewMode>('plain');
   const [translatedRisks, setTranslatedRisks] = useState<Record<number, { explanation: string; impact: string; title: string }> | null>(null);
   const [translatedActions, setTranslatedActions] = useState<Action[] | null>(null);
+  const [translatedKeyPoints, setTranslatedKeyPoints] = useState<string[] | null>(null);
   const [speakingSection, setSpeakingSection] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -26,50 +28,97 @@ export function ResultView({ result, onSaveToChat, isSaving }: ResultViewProps) 
     if (speakingSection === section) { setSpeakingSection(null); return; }
     setSpeakingSection(section);
     try {
-      const audio = await speakText(text, targetLang);
+      const audio = await speakText(text, activeTranslatedLang || targetLang);
       audioRef.current = audio;
       audio.play();
       audio.onended = () => setSpeakingSection(null);
     } catch { setSpeakingSection(null); }
   };
 
-  const handleTranslate = async () => {
-    if (translatedSummary) {
+  const handleTranslate = async (langToUse?: string) => {
+    const chosenLang = langToUse || targetLang;
+    if (chosenLang === 'English') {
       setTranslatedSummary(null);
       setTranslatedRisks(null);
       setTranslatedActions(null);
+      setTranslatedKeyPoints(null);
+      setActiveTranslatedLang(null);
       return;
     }
+
+    if (activeTranslatedLang === chosenLang) {
+      // Toggle back to original English
+      setTranslatedSummary(null);
+      setTranslatedRisks(null);
+      setTranslatedActions(null);
+      setTranslatedKeyPoints(null);
+      setActiveTranslatedLang(null);
+      return;
+    }
+
     setIsTranslating(true);
     try {
-      // Translate summary
-      setTranslatedSummary(await translateText(result.summary, targetLang));
+      // Build batch items across all content
+      const items: Array<{ id: string; text: string }> = [];
+      items.push({ id: 'summary', text: result.summary });
 
-      // Translate risks in parallel (3 calls per risk: title + explanation + impact)
-      const riskPromises = result.risks.map(async (r) => ({
-        title: await translateText(r.title, targetLang),
-        explanation: await translateText(r.plain_explanation || r.description, targetLang),
-        impact: r.impact_line ? await translateText(r.impact_line, targetLang) : '',
-      }));
-      const riskResults = await Promise.all(riskPromises);
+      result.risks.forEach((r, idx) => {
+        items.push({ id: `risk_${idx}_title`, text: r.title });
+        const exp = r.plain_explanation || r.description;
+        if (exp) items.push({ id: `risk_${idx}_exp`, text: exp });
+        if (r.impact_line) items.push({ id: `risk_${idx}_impact`, text: r.impact_line });
+      });
+
+      result.actions?.forEach((a, idx) => {
+        items.push({ id: `action_${idx}_title`, text: a.title });
+        items.push({ id: `action_${idx}_advice`, text: a.advice });
+      });
+
+      result.key_points?.forEach((pt, idx) => {
+        items.push({ id: `kp_${idx}`, text: pt });
+      });
+
+      const transMap = await translateBatch(items, chosenLang);
+
+      setTranslatedSummary(transMap['summary'] || result.summary);
+
       const rt: Record<number, { explanation: string; impact: string; title: string }> = {};
-      riskResults.forEach((t, i) => { rt[i] = t; });
+      result.risks.forEach((r, idx) => {
+        rt[idx] = {
+          title: transMap[`risk_${idx}_title`] || r.title,
+          explanation: transMap[`risk_${idx}_exp`] || (r.plain_explanation || r.description),
+          impact: r.impact_line ? (transMap[`risk_${idx}_impact`] || r.impact_line) : '',
+        };
+      });
       setTranslatedRisks(rt);
 
-      // Translate actions in parallel
       if (result.actions?.length) {
-        const actionPromises = result.actions.map(async (a) => ({
+        const actList: Action[] = result.actions.map((a, idx) => ({
           ...a,
-          title: await translateText(a.title, targetLang),
-          advice: await translateText(a.advice, targetLang),
+          title: transMap[`action_${idx}_title`] || a.title,
+          advice: transMap[`action_${idx}_advice`] || a.advice,
         }));
-        setTranslatedActions(await Promise.all(actionPromises));
+        setTranslatedActions(actList);
       }
+
+      if (result.key_points?.length) {
+        setTranslatedKeyPoints(result.key_points.map((pt, idx) => transMap[`kp_${idx}`] || pt));
+      }
+
+      setActiveTranslatedLang(chosenLang);
     } catch (error) {
-      console.error(error);
-      alert("Translation failed");
+      console.error('Translation failed:', error);
+      alert('Translation failed. Please try again.');
     } finally {
       setIsTranslating(false);
+    }
+  };
+
+  const handleLanguageChange = (newLang: string) => {
+    setTargetLang(newLang);
+    if (activeTranslatedLang) {
+      // Re-translate immediately to the selected language
+      handleTranslate(newLang);
     }
   };
 
@@ -156,7 +205,7 @@ export function ResultView({ result, onSaveToChat, isSaving }: ResultViewProps) 
             <div className="flex items-center gap-2 bg-[#121923] p-1 rounded-xl border border-white/10">
              <select 
                value={targetLang || 'Hausa'}
-               onChange={(e) => setTargetLang(e.target.value)}
+               onChange={(e) => handleLanguageChange(e.target.value)}
                className="text-xs md:text-sm border-none bg-transparent rounded-lg px-3 py-1.5 md:px-4 md:py-2 focus:ring-0 text-white font-bold cursor-pointer hover:bg-white/10 transition-colors"
              >
                <option className="bg-[#050B10]">Hausa</option>
@@ -168,12 +217,12 @@ export function ResultView({ result, onSaveToChat, isSaving }: ResultViewProps) 
                <option className="bg-[#050B10]">Japanese</option>
              </select>
              <button 
-              onClick={handleTranslate}
+              onClick={() => handleTranslate()}
               disabled={isTranslating}
-              className="flex items-center gap-2 text-xs md:text-sm font-bold bg-mint text-[#050B10] px-3 py-1.5 md:px-4 md:py-2 rounded-lg transition-all hover:scale-105 active:scale-95"
+              className="flex items-center gap-2 text-xs md:text-sm font-bold bg-mint text-[#050B10] px-3 py-1.5 md:px-4 md:py-2 rounded-lg transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
              >
                <Languages className="h-3.5 w-3.5 md:h-4 md:w-4" />
-               {isTranslating ? '...' : translatedSummary ? 'Original' : `Translate`}
+               {isTranslating ? 'Translating...' : activeTranslatedLang ? 'Show Original' : `Translate`}
               </button>
           </div>
           </div>
@@ -240,7 +289,7 @@ export function ResultView({ result, onSaveToChat, isSaving }: ResultViewProps) 
         <div className="bg-black text-white rounded-2xl p-6 md:p-10">
           <h2 className="text-xl md:text-2xl font-bold mb-4 md:mb-6">Key Takeaways</h2>
           <ul className="space-y-3 md:space-y-4">
-            {result.key_points.map((point, i) => (
+            {(translatedKeyPoints || result.key_points).map((point, i) => (
               <li key={i} className="flex gap-3 md:gap-4 items-start">
                 <div className="mt-1 flex h-5 w-5 md:h-6 md:w-6 shrink-0 items-center justify-center rounded-full bg-white/10 text-white">
                    <ChevronRight className="h-3 w-3 md:h-4 md:w-4 text-white/50" />

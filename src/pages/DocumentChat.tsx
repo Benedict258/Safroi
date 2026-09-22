@@ -5,20 +5,30 @@ import type { AuthUser } from '../services/auth';
 interface DocumentChatPageProps {
   user: AuthUser | null;
   onNavigate: (view: string) => void;
+  activeDocId?: string | null;
+  fromAnalysis?: boolean;
 }
 
-export function DocumentChatPage({ user, onNavigate }: DocumentChatPageProps) {
-  const [initialDocId, setInitialDocId] = useState<string | null>(null);
-  const [showBanner, setShowBanner] = useState(false);
+export function DocumentChatPage({ user, onNavigate, activeDocId, fromAnalysis }: DocumentChatPageProps) {
+  const [initialDocId, setInitialDocId] = useState<string | null>(activeDocId || null);
+  const [showBanner, setShowBanner] = useState(!!fromAnalysis);
+
+  useEffect(() => {
+    if (activeDocId) {
+      setInitialDocId(activeDocId);
+    }
+    if (fromAnalysis) {
+      setShowBanner(true);
+    }
+  }, [activeDocId, fromAnalysis]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const docId = params.get('docId');
-    const fromAnalysis = params.get('fromAnalysis');
+    const fromAnal = params.get('fromAnalysis');
     if (docId) setInitialDocId(docId);
-    if (fromAnalysis === '1') setShowBanner(true);
-    // Clean URL
-    if (docId || fromAnalysis) {
+    if (fromAnal === '1') setShowBanner(true);
+    if (docId || fromAnal) {
       window.history.replaceState({}, document.title, window.location.pathname);
     }
   }, []);

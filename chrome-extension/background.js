@@ -129,11 +129,14 @@ async function analyzeDomain(domain, fullUrl, favicon) {
         // Try to update from active tab if it's an app tab
         const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
         const currentTab = tabs[0];
-        if (currentTab && currentTab.url && (currentTab.url.includes('europe-west1.run.app') || currentTab.url.includes('localhost'))) {
-          const newBase = new URL(currentTab.url).origin;
-          if (newBase !== BASE_URL) {
-            console.log("Background: Auto-updating BASE_URL to tab origin:", newBase);
-            BASE_URL = newBase;
+        if (currentTab && currentTab.url) {
+          const tabUrl = new URL(currentTab.url);
+          if (tabUrl.hostname.includes('run.app') || tabUrl.hostname.includes('suirify.com') || tabUrl.hostname.includes('onrender.com') || tabUrl.hostname.includes('vercel.app') || tabUrl.hostname === 'localhost') {
+            const newBase = tabUrl.origin;
+            if (newBase !== BASE_URL) {
+              console.log("Background: Auto-updating BASE_URL to tab origin:", newBase);
+              BASE_URL = newBase;
+            }
           }
         }
       }

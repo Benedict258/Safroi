@@ -4,6 +4,8 @@ import { AnalysisForm } from './components/AnalysisForm';
 import { ResultView } from './components/ResultView';
 import { HistoryView } from './components/HistoryView';
 import { Legal } from './components/Legal';
+import { TermsOfService } from './pages/TermsOfService';
+import { PrivacyPolicy } from './pages/PrivacyPolicy';
 import { Pricing } from './pages/Pricing';
 import { PaystackCallback, LemonSqueezySuccess } from './pages/PaymentResults';
 import { DocumentChatPage } from './pages/DocumentChat';
@@ -16,10 +18,12 @@ import { login, signup, requestReset, logout, getStoredUser, getMe } from './ser
 import type { AuthUser } from './services/auth';
 
 export default function App() {
-  const [activeView, setActiveView] = useState<'home' | 'dashboard' | 'history' | 'about' | 'legal' | 'pricing' | 'paystack-callback' | 'lemonsqueezy-success' | 'document-chat'>('home');
+  const [activeView, setActiveView] = useState<'home' | 'dashboard' | 'history' | 'about' | 'legal' | 'terms' | 'privacy' | 'pricing' | 'paystack-callback' | 'lemonsqueezy-success' | 'document-chat'>('home');
   const [currentResult, setCurrentResult] = useState<AnalysisResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSavingToChat, setIsSavingToChat] = useState(false);
+  const [selectedChatDocId, setSelectedChatDocId] = useState<string | null>(null);
+  const [showFromAnalysisBanner, setShowFromAnalysisBanner] = useState(false);
   const [user, setUser] = useState<AuthUser | null>(getStoredUser);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -44,6 +48,10 @@ export default function App() {
 
     if (path === '/pricing' || path === '/pricing/') {
       setActiveView('pricing');
+    } else if (path === '/terms' || path === '/terms/' || path === '/terms-of-service') {
+      setActiveView('terms');
+    } else if (path === '/privacy' || path === '/privacy/' || path === '/privacy-policy') {
+      setActiveView('privacy');
     } else if (path === '/payment/paystack/callback') {
       setActiveView('paystack-callback');
     } else if (path === '/payment/lemonsqueezy/success') {
@@ -86,20 +94,60 @@ export default function App() {
 
   const handleSaveToChat = async (result?: AnalysisResult) => {
     const res = result ?? currentResult;
-    if (!user || !res) return;
+    if (!res) return;
+    if (!user) {
+      setShowAuthModal(true);
+      return;
+    }
     setIsSavingToChat(true);
     try {
       const BASE_URL = import.meta.env.VITE_API_URL || '';
-      // Build document text from analysis
-      const docText = [
+      // Build hybrid document text: structured risk assessment + original contract text
+      const sections: string[] = [
+        '=== EXECUTIVE RISK ASSESSMENT & ANALYSIS ===',
         `Title: ${res.title}`,
         `Type: ${res.type}`,
         `Risk Score: ${res.risk_score}/10`,
         `Summary: ${res.summary}`,
         '',
-        'Risks:',
-        ...res.risks.map(r => `- ${r.title} (${r.severity}): ${r.description}${r.plain_explanation ? ' | ' + r.plain_explanation : ''}${r.impact_line ? ' | Impact: ' + r.impact_line : ''}`)
-      ].join('\n');
+        'Key Flagged Clauses & Risks:',
+        ...res.risks.map((r, i) => [
+          `[Clause ${i + 1}] ${r.title} (Severity: ${r.severity.toUpperCase()})`,
+          `Legal Description: ${r.description}`,
+          r.plain_explanation ? `Plain Language: ${r.plain_explanation}` : '',
+          r.impact_line ? `Practical Impact: ${r.impact_line}` : '',
+          r.clause ? `Excerpt: "${r.clause}"` : '',
+        ].filter(Boolean).join('\n')),
+      ];
+
+      if (res.actions && res.actions.length > 0) {
+        sections.push(
+          '',
+          'Recommended Action Items:',
+          ...res.actions.map(a => `- [${a.urgency.toUpperCase()}] ${a.title}: ${a.advice}`)
+        );
+      }
+
+      if (res.key_points && res.key_points.length > 0) {
+        sections.push(
+          '',
+          'Key Takeaways:',
+          ...res.key_points.map(pt => `- ${pt}`)
+        );
+      }
+
+      if (res.original_text && res.original_text.trim().length > 0) {
+        sections.push(
+          '',
+          '=================================================================',
+          '=== ORIGINAL CONTRACT / TERMS OF SERVICE DOCUMENT TEXT ===',
+          '=================================================================',
+          '',
+          res.original_text.trim()
+        );
+      }
+
+      const docText = sections.join('\n');
       const payload = {
         type: 'analysis',
         value: docText,
@@ -121,9 +169,10 @@ export default function App() {
       }
       const data = await resp.json();
       // Redirect to Document Chat with new doc selected and banner
+      setSelectedChatDocId(data.documentId);
+      setShowFromAnalysisBanner(true);
       setActiveView('document-chat');
       window.history.pushState({}, '', `/document-chat?docId=${data.documentId}&fromAnalysis=1`);
-      // Also update active view handled by effect? We'll just set active view.
     } catch (err) {
       console.error(err);
       alert(err instanceof Error ? err.message : 'Failed to save to chat');
@@ -381,11 +430,28 @@ export default function App() {
 
         {activeView === 'about' && <About />}
         {activeView === 'legal' && <Legal onBack={() => setActiveView('home')} />}
+        {activeView === 'terms' && (
+          <TermsOfService 
+            onBack={() => setActiveView('home')} 
+            onNavigatePrivacy={() => setActiveView('privacy')} 
+          />
+        )}
+        {activeView === 'privacy' && (
+          <PrivacyPolicy 
+            onBack={() => setActiveView('home')} 
+            onNavigateTerms={() => setActiveView('terms')} 
+          />
+        )}
         {activeView === 'pricing' && (
           <Pricing user={user} onLogin={() => setShowAuthModal(true)} onNavigate={(v) => setActiveView(v as any)} />
         )}
         {activeView === 'document-chat' && (
-          <DocumentChatPage user={user} onNavigate={(v) => setActiveView(v as any)} />
+          <DocumentChatPage 
+            user={user} 
+            onNavigate={(v) => setActiveView(v as any)} 
+            activeDocId={selectedChatDocId}
+            fromAnalysis={showFromAnalysisBanner}
+          />
         )}
         {activeView === 'paystack-callback' && <PaystackCallback />}
         {activeView === 'lemonsqueezy-success' && <LemonSqueezySuccess />}
@@ -412,8 +478,8 @@ export default function App() {
               <div className="space-y-4 min-w-[120px]">
                 <h4 className="text-xs font-black uppercase tracking-widest text-white/20">Legal</h4>
                 <ul className="space-y-2 text-sm font-bold">
-                  <li><button onClick={() => setActiveView('legal')} className="hover:text-mint transition-colors underline-offset-4 decoration-mint/30">Terms of Service</button></li>
-                  <li><button onClick={() => setActiveView('legal')} className="hover:text-mint transition-colors underline-offset-4 decoration-mint/30">Privacy Policy</button></li>
+                  <li><button onClick={() => setActiveView('terms')} className="hover:text-mint transition-colors underline-offset-4 decoration-mint/30">Terms of Service</button></li>
+                  <li><button onClick={() => setActiveView('privacy')} className="hover:text-mint transition-colors underline-offset-4 decoration-mint/30">Privacy Policy</button></li>
                 </ul>
               </div>
             </div>

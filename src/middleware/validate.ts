@@ -34,6 +34,14 @@ export const translateSchema = z.object({
   targetLanguage: z.string().min(1).max(50),
 });
 
+export const translateBatchSchema = z.object({
+  items: z.array(z.object({
+    id: z.string().min(1).max(100),
+    text: z.string().min(1).max(50000),
+  })).min(1).max(50),
+  targetLanguage: z.string().min(1).max(50),
+});
+
 export const speakSchema = z.object({
   text: z.string().min(1).max(10000),
   language: z.string().min(1).max(50),
@@ -48,7 +56,8 @@ export function validate(schema: z.ZodSchema) {
   return (req: Request, res: Response, next: NextFunction) => {
     const result = schema.safeParse(req.body);
     if (!result.success) {
-      const message = result.error.errors.map(e => e.message).join('; ');
+      const errs = (result.error as any).issues || (result.error as any).errors || [];
+      const message = errs.map((e: any) => e.message).join('; ') || result.error.message;
       return res.status(400).json({ error: message });
     }
     req.body = result.data;

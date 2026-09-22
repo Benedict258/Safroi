@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import crypto from 'crypto';
-import { User } from '../db/models';
+import { userStore } from '../services/userStore';
 
 const router = Router();
 
@@ -78,12 +78,12 @@ router.get('/callback', async (req, res) => {
 
     const { userId, plan } = data.data.metadata;
 
-    const user = await User.findById(userId);
+    const user = await userStore.findById(userId);
     if (!user) {
       return res.redirect(`${CLIENT_URL}/pricing?payment=failed`);
     }
 
-    await User.findByIdAndUpdate(userId, {
+    await userStore.updateUser(userId, {
       plan,
       planActive: true,
       paymentProvider: 'paystack',
@@ -122,7 +122,7 @@ router.post('/webhook', async (req, res) => {
       case 'charge.success': {
         const { userId, plan } = event.data.metadata || {};
         if (userId) {
-          await User.findByIdAndUpdate(userId, {
+          await userStore.updateUser(userId, {
             plan,
             planActive: true,
             paymentProvider: 'paystack',
@@ -136,7 +136,7 @@ router.post('/webhook', async (req, res) => {
       case 'invoice.payment_failed': {
         const customerCode = event.data.customer?.customer_code;
         if (customerCode) {
-          await User.findOneAndUpdate(
+          await userStore.updateByQuery(
             { paystackCustomerId: customerCode },
             { planActive: false }
           );

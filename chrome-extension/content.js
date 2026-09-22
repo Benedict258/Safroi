@@ -1,9 +1,13 @@
 // Safroi Content Script — syncs auth status with the extension
 
 function syncAuth() {
-    const isAppDomain = window.location.hostname.includes('onrender.com') || 
-                        window.location.hostname.includes('vercel.app') ||
-                        window.location.hostname === 'localhost';
+    const hostname = window.location.hostname;
+    const isAppDomain = hostname.includes('run.app') ||
+                        hostname.includes('suirify.com') ||
+                        hostname.includes('onrender.com') || 
+                        hostname.includes('vercel.app') ||
+                        hostname === 'localhost' ||
+                        hostname === '127.0.0.1';
 
     if (!isAppDomain) return;
 

@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Check, Loader2, Zap, Shield, Globe, ArrowLeft } from 'lucide-react';
+import { Check, ArrowLeft } from 'lucide-react';
 import { cn } from '../lib/utils';
 import type { AuthUser } from '../services/auth';
-
-const BASE_URL = import.meta.env.VITE_API_URL || '';
 
 interface PricingProps {
   user: AuthUser | null;
@@ -16,7 +14,15 @@ interface PlanFeature {
   included: boolean;
 }
 
-const plans = {
+interface PlanItem {
+  name: string;
+  price: string;
+  period: string;
+  badge?: string;
+  features: PlanFeature[];
+}
+
+const plans: Record<string, PlanItem> = {
   free: {
     name: 'Free',
     price: '$0',
@@ -60,8 +66,6 @@ const plans = {
 };
 
 export function Pricing({ user, onLogin, onNavigate }: PricingProps) {
-  const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [paymentFailed, setPaymentFailed] = useState(false);
 
   useEffect(() => {
@@ -75,49 +79,25 @@ export function Pricing({ user, onLogin, onNavigate }: PricingProps) {
   const isNigerian = () => {
     try {
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      return tz.includes('Africa/Lagos') || tz.includes('Africa/Abuja');
+      const locale = navigator.language || '';
+      return tz.includes('Africa/Lagos') || tz.includes('Africa/Abuja') || tz.includes('Lagos') || locale.includes('NG') || locale.includes('ng');
     } catch {
       return false;
     }
   };
 
-  const handlePayment = async (plan: 'pro' | 'business', provider: 'paystack' | 'lemonsqueezy') => {
-    if (!user) {
-      onNavigate('home');
-      return;
+  const getPlanPrice = (planKey: string) => {
+    const inNigeria = isNigerian();
+    if (planKey === 'pro') {
+      return inNigeria ? '₦2,500' : '$5';
     }
-
-    setLoadingPlan(`${plan}-${provider}`);
-    setError(null);
-
-    try {
-      if (provider === 'paystack') {
-        const res = await fetch(`${BASE_URL}/api/paystack/initialize`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: user.email, userId: user.uid, plan }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Payment failed');
-        window.location.href = data.authorizationUrl;
-      } else {
-        const res = await fetch(`${BASE_URL}/api/lemonsqueezy/checkout`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: user.uid, plan }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Payment failed');
-        window.location.href = data.checkoutUrl;
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Payment failed. Please try again.');
-      setLoadingPlan(null);
+    if (planKey === 'business') {
+      return inNigeria ? '₦5,000' : '$15';
     }
+    return plans[planKey]?.price || '$0';
   };
 
   const renderCta = (planKey: string) => {
-    const plan = plans[planKey as keyof typeof plans];
     if (planKey === 'free') {
       if (!user) {
         return (
@@ -140,47 +120,16 @@ export function Pricing({ user, onLogin, onNavigate }: PricingProps) {
       );
     }
 
-    if (!user) {
-      return (
-        <button onClick={onLogin} className="w-full py-4 rounded-xl font-extrabold text-[#050B10] bg-mint hover:bg-mint/90 transition-all">
-          Get {plan.name}
-        </button>
-      );
-    }
-
-    const showBoth = isNigerian() || user.paymentProvider === 'paystack';
-
-    if (showBoth) {
-      return (
-        <div className="space-y-2">
-          <button
-            onClick={() => handlePayment(planKey as 'pro' | 'business', 'paystack')}
-            disabled={loadingPlan !== null}
-            className="w-full py-3 rounded-xl font-extrabold text-[#050B10] bg-mint hover:bg-mint/90 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-          >
-            {loadingPlan === `${planKey}-paystack` ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            Pay with Paystack
-          </button>
-          <button
-            onClick={() => handlePayment(planKey as 'pro' | 'business', 'lemonsqueezy')}
-            disabled={loadingPlan !== null}
-            className="w-full py-3 rounded-xl font-extrabold text-white bg-white/10 border border-white/20 hover:bg-white/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-          >
-            {loadingPlan === `${planKey}-lemonsqueezy` ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            Pay with Lemon Squeezy
-          </button>
-        </div>
-      );
-    }
-
+    // For paid plans (Pro & Business): Just one button just like Go to Dashboard that says Pay (not clickable yet)
     return (
       <button
-        onClick={() => handlePayment(planKey as 'pro' | 'business', 'lemonsqueezy')}
-        disabled={loadingPlan !== null}
-        className="w-full py-4 rounded-xl font-extrabold text-[#050B10] bg-mint hover:bg-mint/90 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+        type="button"
+        disabled
+        aria-disabled="true"
+        title="Payment coming soon"
+        className="w-full py-4 rounded-xl font-extrabold text-[#050B10] bg-white opacity-90 cursor-not-allowed transition-all select-none"
       >
-        {loadingPlan === `${planKey}-lemonsqueezy` ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-        Get {plan.name}
+        Pay
       </button>
     );
   };
@@ -199,12 +148,6 @@ export function Pricing({ user, onLogin, onNavigate }: PricingProps) {
         </p>
       </div>
 
-      {error && (
-        <div className="max-w-md mx-auto p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-bold text-center">
-          {error}
-        </div>
-      )}
-
       {paymentFailed && (
         <div className="max-w-md mx-auto p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-bold text-center">
           Payment could not be completed. Please try again or contact support.
@@ -213,7 +156,7 @@ export function Pricing({ user, onLogin, onNavigate }: PricingProps) {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 max-w-5xl mx-auto">
-        {(Object.entries(plans) as [string, typeof plans.free][]).map(([key, plan]) => (
+        {Object.entries(plans).map(([key, plan]) => (
           <div
             key={key}
             className={cn(
@@ -232,7 +175,7 @@ export function Pricing({ user, onLogin, onNavigate }: PricingProps) {
             <div className="mb-6">
               <h3 className="text-2xl font-black uppercase italic">{plan.name}</h3>
               <div className="flex items-baseline gap-1 mt-2">
-                <span className="text-5xl font-black">{plan.price}</span>
+                <span className="text-5xl font-black">{getPlanPrice(key)}</span>
                 <span className="text-white/40 font-bold">{plan.period}</span>
               </div>
             </div>

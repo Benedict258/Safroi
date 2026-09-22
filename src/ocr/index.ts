@@ -1,4 +1,4 @@
-import sharp from 'sharp';
+import sharp, { type OverlayOptions } from 'sharp';
 import { createWorker } from 'tesseract.js';
 
 export interface WordBox {
@@ -148,7 +148,7 @@ export async function highlightImage(
   const totalHeight = outputs.reduce((sum, p) => sum + p.height, 0);
   const maxWidth = Math.max(...outputs.map(p => p.width));
 
-  const compositeInputs: sharp.OverlayOptions[] = [];
+  const compositeInputs: OverlayOptions[] = [];
   let yOffset = 0;
   for (const page of outputs) {
     compositeInputs.push({ input: page.input, top: yOffset, left: 0 });

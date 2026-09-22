@@ -1,0 +1,209 @@
+import React, { useEffect } from 'react';
+import { ArrowLeft, Shield, FileText, Lock, ChevronRight } from 'lucide-react';
+
+interface TermsOfServiceProps {
+  onBack: () => void;
+  onNavigatePrivacy?: () => void;
+}
+
+export function TermsOfService({ onBack, onNavigatePrivacy }: TermsOfServiceProps) {
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-[#050B10] text-white p-4 sm:p-6 md:p-12 overflow-y-auto">
+      <div className="max-w-4xl mx-auto space-y-8 md:space-y-12 pb-24">
+        {/* Navigation / Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-6">
+          <button 
+            onClick={onBack}
+            className="group flex items-center gap-2 text-white/60 hover:text-white transition-colors w-fit"
+          >
+            <ArrowLeft className="h-5 w-5 group-hover:-translate-x-1 transition-transform text-mint" />
+            <span className="font-bold text-sm">Back</span>
+          </button>
+          
+          <div className="flex items-center gap-3">
+            {onNavigatePrivacy && (
+              <button
+                onClick={onNavigatePrivacy}
+                className="flex items-center gap-2 text-xs font-bold text-mint hover:text-mint/80 bg-mint/10 border border-mint/20 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                <Lock className="h-3.5 w-3.5" />
+                View Privacy Policy
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            )}
+            <div className="flex items-center gap-2 text-xs font-mono text-white/40 bg-white/5 px-3 py-1.5 rounded-lg border border-white/10">
+              <Shield className="h-3.5 w-3.5 text-mint" />
+              <span>Safroi Legal</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Hero Section */}
+        <div className="space-y-4">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-mint/10 border border-mint/30 text-mint text-xs font-bold uppercase tracking-wider">
+            <FileText className="h-3.5 w-3.5" />
+            Legal Agreement
+          </div>
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-black italic uppercase tracking-tight">
+            Terms of <span className="text-mint">Service</span>
+          </h1>
+          <p className="text-sm font-medium text-white/40">
+            Last Updated: March 2026
+          </p>
+        </div>
+
+        {/* Content Body */}
+        <div className="bg-[#0B1219] border border-white/10 rounded-2xl p-6 sm:p-8 md:p-10 space-y-10 text-white/80 font-normal leading-relaxed text-sm md:text-base">
+          
+          <section className="space-y-3">
+            <h2 className="text-lg md:text-xl font-bold text-white flex items-center gap-2">
+              <span className="text-mint font-mono text-sm">01.</span> Agreement to Terms
+            </h2>
+            <p className="text-white/70">
+              Welcome to Safroi. These Terms of Service (&quot;Terms&quot;) govern your access to and use of the Safroi website, web application, and browser extension (together, the &quot;Service&quot;). By creating an account or otherwise using the Service, you agree to be bound by these Terms. If you do not agree, please do not use the Service.
+            </p>
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="text-lg md:text-xl font-bold text-white flex items-center gap-2">
+              <span className="text-mint font-mono text-sm">02.</span> What Safroi Does
+            </h2>
+            <p className="text-white/70">
+              Safroi is an AI-powered tool that helps you understand contracts, agreements, and website terms of service. When you upload a document (as a photo or PDF) or browse the web with our extension enabled, Safroi analyzes the text, identifies clauses that may be risky or unfavorable to you, and explains them in plain language alongside the original legal wording. Safroi provides a caution rating, a short plain-language impact statement, and a category tag for each flagged clause. Where available, explanations can be provided in multiple languages, including Hausa, Yoruba, and Igbo alongside English.
+            </p>
+          </section>
+
+          <section className="space-y-3 p-5 rounded-xl bg-mint/5 border border-mint/20">
+            <h2 className="text-lg md:text-xl font-bold text-mint flex items-center gap-2">
+              <span className="font-mono text-sm">03.</span> Not Legal Advice
+            </h2>
+            <p className="text-white/90 font-medium">
+              <strong className="text-mint">Safroi is not a lawyer, and using Safroi does not create a lawyer-client relationship.</strong> The information, explanations, and risk assessments Safroi provides are for general informational purposes only and are generated by an AI system. They are not a substitute for advice from a qualified legal professional. Before making any significant decision — signing a contract, accepting a lease, agreeing to employment terms, or anything with real legal or financial consequences — you should consult a licensed attorney. Safroi disclaims any responsibility for decisions made based solely on information provided by the Service.
+            </p>
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="text-lg md:text-xl font-bold text-white flex items-center gap-2">
+              <span className="text-mint font-mono text-sm">04.</span> Accounts
+            </h2>
+            <p className="text-white/70">
+              To use certain features of Safroi, you must create an account. You agree to:
+            </p>
+            <ul className="list-disc pl-6 space-y-1.5 text-white/70">
+              <li>Provide accurate information when creating your account</li>
+              <li>Keep your login credentials confidential and secure</li>
+              <li>Notify us promptly if you believe your account has been accessed without authorization</li>
+              <li>Be responsible for all activity that occurs under your account</li>
+            </ul>
+            <p className="text-white/70 mt-2">
+              You must be at least 18 years old (or the age of legal majority in your jurisdiction) to create an account and use the Service.
+            </p>
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="text-lg md:text-xl font-bold text-white flex items-center gap-2">
+              <span className="text-mint font-mono text-sm">05.</span> Acceptable Use
+            </h2>
+            <p className="text-white/70">You agree not to:</p>
+            <ul className="list-disc pl-6 space-y-1.5 text-white/70">
+              <li>Use Safroi to analyze documents you do not have the right to access or share</li>
+              <li>Attempt to reverse-engineer, scrape, or extract the underlying AI models or systems powering the Service</li>
+              <li>Use the Service to generate or facilitate harmful, fraudulent, or illegal content</li>
+              <li>Interfere with or disrupt the Service&apos;s infrastructure or attempt unauthorized access to other users&apos; accounts or data</li>
+              <li>Use the browser extension in a way that violates the terms of service of the websites it scans</li>
+            </ul>
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="text-lg md:text-xl font-bold text-white flex items-center gap-2">
+              <span className="text-mint font-mono text-sm">06.</span> Your Content
+            </h2>
+            <p className="text-white/70">
+              When you upload a document or the browser extension scans a webpage&apos;s terms, you retain ownership of that content. By using the Service, you grant Safroi a limited license to process that content solely for the purpose of providing the analysis and explanation features described in Section 2. See our Privacy Policy for details on how uploaded content and scanned data are stored, retained, and deleted.
+            </p>
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="text-lg md:text-xl font-bold text-white flex items-center gap-2">
+              <span className="text-mint font-mono text-sm">07.</span> Third-Party AI Processing
+            </h2>
+            <p className="text-white/70">
+              Safroi&apos;s analysis features are powered in part by third-party AI infrastructure. By using the Service, you acknowledge that document text and content may be transmitted to and processed by these third-party providers as part of generating your results. We select providers with reasonable data-handling practices, but we do not control their infrastructure directly. See our Privacy Policy for more detail.
+            </p>
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="text-lg md:text-xl font-bold text-white flex items-center gap-2">
+              <span className="text-mint font-mono text-sm">08.</span> Accuracy and Limitations
+            </h2>
+            <p className="text-white/70">
+              AI-generated analysis can be incomplete, outdated, or incorrect. Safroi does not guarantee that its risk assessments, translations, or explanations are accurate, complete, or applicable to your specific situation or jurisdiction. Legal and regulatory contexts vary by location and change over time; Safroi does not represent that its analysis reflects the current law in your specific location.
+            </p>
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="text-lg md:text-xl font-bold text-white flex items-center gap-2">
+              <span className="text-mint font-mono text-sm">09.</span> Intellectual Property
+            </h2>
+            <p className="text-white/70">
+              The Safroi name, logo, interface, and underlying software (excluding your own uploaded content and third-party AI models) are the property of Safroi and its licensors. You may not copy, modify, distribute, or create derivative works from the Service without prior written permission.
+            </p>
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="text-lg md:text-xl font-bold text-white flex items-center gap-2">
+              <span className="text-mint font-mono text-sm">10.</span> Termination
+            </h2>
+            <p className="text-white/70">
+              We may suspend or terminate your account if you violate these Terms. You may stop using the Service and delete your account at any time. Upon termination, your right to use the Service ends immediately, though certain provisions of these Terms (including Sections 3, 8, and 11) survive termination.
+            </p>
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="text-lg md:text-xl font-bold text-white flex items-center gap-2">
+              <span className="text-mint font-mono text-sm">11.</span> Limitation of Liability
+            </h2>
+            <p className="text-white/70">
+              To the maximum extent permitted by law, Safroi and its operators are not liable for any indirect, incidental, special, or consequential damages arising from your use of the Service, including but not limited to decisions made in reliance on AI-generated analysis. The Service is provided &quot;as is&quot; without warranties of any kind, express or implied.
+            </p>
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="text-lg md:text-xl font-bold text-white flex items-center gap-2">
+              <span className="text-mint font-mono text-sm">12.</span> Changes to These Terms
+            </h2>
+            <p className="text-white/70">
+              We may update these Terms from time to time. If we make material changes, we will provide notice through the Service or by other reasonable means. Continued use of the Service after changes take effect constitutes acceptance of the updated Terms.
+            </p>
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="text-lg md:text-xl font-bold text-white flex items-center gap-2">
+              <span className="text-mint font-mono text-sm">13.</span> Governing Law
+            </h2>
+            <p className="text-white/70">
+              These Terms and your use of the Service shall be governed by and construed in accordance with applicable laws, without giving effect to any principles of conflicts of law.
+            </p>
+          </section>
+
+          <section className="space-y-3 border-t border-white/10 pt-6">
+            <h2 className="text-lg md:text-xl font-bold text-white flex items-center gap-2">
+              <span className="text-mint font-mono text-sm">14.</span> Contact
+            </h2>
+            <p className="text-white/70">
+              If you have questions about these Terms, please reach out to us at{' '}
+              <a href="mailto:support@safroi.com" className="text-mint underline hover:text-mint/80">
+                support@safroi.com
+              </a>.
+            </p>
+          </section>
+
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -60,7 +60,8 @@ export function DocumentChat({ user, initialDocId, showFromAnalysisBanner }: Doc
         headers: { 'Authorization': `Bearer ${user.token}` }
       });
       if (!res.ok) {
-        throw new Error('Failed to fetch documents');
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to fetch documents');
       }
       const docs = await res.json();
       setDocuments(docs);

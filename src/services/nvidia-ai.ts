@@ -87,8 +87,8 @@ Requirements:
 `;
 
   const messages = [
-    { role: 'system', content: 'You are a legal AI assistant specializing in contract analysis.' },
-    { role: 'user', content: prompt }
+    { role: 'system' as const, content: 'You are a legal AI assistant specializing in contract analysis.' },
+    { role: 'user' as const, content: prompt }
   ];
 
   return generateWithGLM5(messages, { temperature: 0.1, maxTokens: 8192 });

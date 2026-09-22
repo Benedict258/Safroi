@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { Document, ChatSession, ChatMessage } from '../db/models';
-import { ingestDocument, chatWithDocument, findRelevantChunks } from '../services/document';
+import { ingestDocument, chatWithDocument } from '../services/document';
+import { documentStore, StoredMessage } from '../services/documentStore';
 import { requireAuth } from '../middleware/auth';
 
 const router = Router();
@@ -24,46 +24,44 @@ router.post('/ingest', requireAuth, async (req, res) => {
     });
 
     res.json(result);
-  } catch (err) {
+  } catch (err: any) {
     console.error('[Documents] Ingest error:', err);
-    res.status(500).json({ error: 'Failed to ingest document' });
+    res.status(500).json({ error: err.message || 'Failed to ingest document' });
   }
 });
 
 router.get('/', requireAuth, async (req, res) => {
   try {
     const userId = (req as any).user.uid;
-    const docs = await Document.find({ userId }).sort({ created_at: -1 }).limit(50);
+    const docs = await documentStore.findDocumentsByUser(userId);
     res.json(docs);
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch documents' });
+  } catch (err: any) {
+    console.error('[Documents] Fetch documents error:', err);
+    res.status(500).json({ error: err.message || 'Failed to fetch documents' });
   }
 });
 
 router.get('/:id', requireAuth, async (req, res) => {
   try {
     const userId = (req as any).user.uid;
-    const doc = await Document.findOne({ _id: req.params.id, userId });
+    const doc = await documentStore.findDocumentById(req.params.id, userId);
     if (!doc) return res.status(404).json({ error: 'Document not found' });
     res.json(doc);
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch document' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to fetch document' });
   }
 });
 
 router.delete('/:id', requireAuth, async (req, res) => {
   try {
     const userId = (req as any).user.uid;
-    const doc = await Document.findOne({ _id: req.params.id, userId });
+    const doc = await documentStore.findDocumentById(req.params.id, userId);
     if (!doc) return res.status(404).json({ error: 'Document not found' });
 
-    await ChatMessage.deleteMany({ sessionId: { $in: await ChatSession.find({ documentId: req.params.id }).distinct('_id') } });
-    await ChatSession.deleteMany({ documentId: req.params.id });
-    await Document.deleteOne({ _id: req.params.id });
-    
+    await documentStore.deleteDocument(req.params.id, userId);
     res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to delete document' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to delete document' });
   }
 });
 
@@ -72,66 +70,54 @@ router.post('/:id/chat', requireAuth, async (req, res) => {
     const userId = (req as any).user.uid;
     const { message } = req.body;
 
-    if (!message) {
+    if (!message || !message.trim()) {
       return res.status(400).json({ error: 'Message required' });
     }
 
-    const doc = await Document.findOne({ _id: req.params.id, userId });
+    const doc = await documentStore.findDocumentById(req.params.id, userId);
     if (!doc) return res.status(404).json({ error: 'Document not found' });
 
-    let session = await ChatSession.findOne({ documentId: req.params.id, userId });
-    if (!session) {
-      session = new ChatSession({
-        _id: uuidv4(),
-        documentId: req.params.id,
-        userId,
-        title: message.slice(0, 50),
-        updated_at: new Date()
-      });
-      await session.save();
-    }
+    const session = await documentStore.findOrCreateSession(req.params.id, userId, message);
 
-    const userMsg = new ChatMessage({
+    const userMsg: StoredMessage = {
       _id: uuidv4(),
       sessionId: session._id,
       role: 'user',
-      content: message
-    });
-    await userMsg.save();
+      content: message.trim(),
+      created_at: new Date()
+    };
+    await documentStore.saveMessage(userMsg);
 
-    const { reply, sources } = await chatWithDocument(req.params.id, userId, message);
+    const { reply, sources } = await chatWithDocument(req.params.id, userId, message.trim());
 
-    const assistantMsg = new ChatMessage({
+    const assistantMsg: StoredMessage = {
       _id: uuidv4(),
       sessionId: session._id,
       role: 'assistant',
       content: reply,
-      sources
-    });
-    await assistantMsg.save();
-
-    await ChatSession.findByIdAndUpdate(session._id, { updated_at: new Date() });
+      sources,
+      created_at: new Date()
+    };
+    await documentStore.saveMessage(assistantMsg);
 
     res.json({ reply, sources });
-  } catch (err) {
+  } catch (err: any) {
     console.error('[Documents] Chat error:', err);
-    res.status(500).json({ error: 'Failed to process chat' });
+    res.status(500).json({ error: err.message || 'Failed to process chat' });
   }
 });
 
 router.get('/:id/chat/history', requireAuth, async (req, res) => {
   try {
     const userId = (req as any).user.uid;
-    const doc = await Document.findOne({ _id: req.params.id, userId });
+    const doc = await documentStore.findDocumentById(req.params.id, userId);
     if (!doc) return res.status(404).json({ error: 'Document not found' });
 
-    const session = await ChatSession.findOne({ documentId: req.params.id, userId });
-    if (!session) return res.json({ messages: [] });
-
-    const messages = await ChatMessage.find({ sessionId: session._id }).sort({ created_at: 1 });
+    const session = await documentStore.findOrCreateSession(req.params.id, userId);
+    const messages = await documentStore.getMessages(session._id);
     res.json({ messages });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch chat history' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to fetch chat history' });
   }
 });
 

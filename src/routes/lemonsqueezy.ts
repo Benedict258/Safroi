@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import crypto from 'crypto';
-import { User } from '../db/models';
+import { userStore } from '../services/userStore';
 
 const router = Router();
 
@@ -110,7 +110,7 @@ router.post('/webhook', async (req, res) => {
           if (event.data?.id) {
             update.lemonsqueezySubscriptionId = event.data.id.toString();
           }
-          await User.findByIdAndUpdate(userId, update);
+          await userStore.updateUser(userId, update);
         }
         break;
       }
@@ -118,7 +118,7 @@ router.post('/webhook', async (req, res) => {
         const subscriptionId = event.data?.id?.toString();
         if (subscriptionId) {
           const isActive = event.data?.attributes?.status === 'active';
-          await User.findOneAndUpdate(
+          await userStore.updateByQuery(
             { lemonsqueezySubscriptionId: subscriptionId },
             { planActive: isActive }
           );
@@ -129,7 +129,7 @@ router.post('/webhook', async (req, res) => {
       case 'subscription_expired': {
         const subscriptionId = event.data?.id?.toString();
         if (subscriptionId) {
-          await User.findOneAndUpdate(
+          await userStore.updateByQuery(
             { lemonsqueezySubscriptionId: subscriptionId },
             { planActive: false }
           );

@@ -268,9 +268,10 @@ async function startServer() {
       }
 
       const { token, hash, expiresAt } = generateResetToken();
-      await User.findOneAndUpdate(
+      await (User as any).findOneAndUpdate(
         { _id: user._id } as any,
         { resetToken: hash, resetTokenExpiry: expiresAt },
+        {}
       );
 
       await sendPasswordResetEmail(user.email, user.displayName, token);
@@ -289,15 +290,16 @@ async function startServer() {
       if (newPassword.length < 6) return res.status(400).json({ error: "Password must be at least 6 characters." });
 
       const hash = hashResetToken(token);
-      const user = await User.findOne({ resetToken: hash } as any);
+      const user = await (User as any).findOne({ resetToken: hash } as any);
 
       if (!user || !user.resetTokenExpiry || new Date(user.resetTokenExpiry) < new Date()) {
         return res.status(400).json({ error: "Invalid or expired reset token." });
       }
 
-      await User.findOneAndUpdate(
+      await (User as any).findOneAndUpdate(
         { _id: user._id } as any,
         { password: newPassword, resetToken: null, resetTokenExpiry: null },
+        {}
       );
 
       res.json({ message: "Password reset successful. You can now sign in." });

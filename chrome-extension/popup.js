@@ -10,7 +10,7 @@ async function detectEnvironment() {
         if (currentTab && currentTab.url) {
             const url = new URL(currentTab.url);
             // If we are currently ON a Safroi app domain, prioritize that origin
-            if (url.hostname.includes('run.app') || url.hostname.includes('localhost') || url.hostname === 'safroi.suirify.com') {
+            if (url.hostname.includes('run.app') || url.hostname.includes('suirify.com') || url.hostname.includes('onrender.com') || url.hostname.includes('vercel.app') || url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
                 console.log("Safroi: Auto-detected environment from tab:", url.origin);
                 BASE_URL = url.origin;
                 return true; 
@@ -218,7 +218,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const tabs = await chrome.tabs.query({});
             let foundApp = false;
             for (const tab of tabs) {
-                if (tab.url && (tab.url.includes('europe-west1.run.app') || tab.url.includes('localhost') || tab.url.includes('safroi.suirify.com'))) {
+                if (tab.url && (tab.url.includes('run.app') || tab.url.includes('suirify.com') || tab.url.includes('onrender.com') || tab.url.includes('vercel.app') || tab.url.includes('localhost') || tab.url.includes('127.0.0.1'))) {
                     foundApp = true;
                     try {
                         await chrome.scripting.executeScript({
@@ -639,27 +639,48 @@ function setupTranslation(data) {
         translateBtn.disabled = true;
 
         try {
-            // Translate summary
-            const summaryResult = await translateApi(data.summary, lang);
-            data._translatedSummary = summaryResult;
-            document.getElementById('summaryText').textContent = summaryResult;
+            await loadConfig();
+            const cleanBase = BASE_URL.endsWith('/') ? BASE_URL.slice(0, -1) : BASE_URL;
 
-            // Translate risks in parallel
-            const riskPromises = (data.risks || []).map(async (risk) => ({
-                title: await translateApi(risk.title, lang),
-                explanation: await translateApi(risk.plain_explanation || risk.description, lang),
-                impact: risk.impact_line ? await translateApi(risk.impact_line, lang) : '',
+            // Prepare batch items
+            const items = [{ id: 'summary', text: data.summary }];
+            (data.risks || []).forEach((risk, i) => {
+                items.push({ id: `risk_${i}_title`, text: risk.title });
+                const exp = risk.plain_explanation || risk.description;
+                if (exp) items.push({ id: `risk_${i}_exp`, text: exp });
+                if (risk.impact_line) items.push({ id: `risk_${i}_impact`, text: risk.impact_line });
+            });
+            (data.actions || []).forEach((a, i) => {
+                items.push({ id: `action_${i}_title`, text: a.title });
+                items.push({ id: `action_${i}_advice`, text: a.advice });
+            });
+
+            // Call translate-batch
+            const res = await fetch(`${cleanBase}/api/translate-batch`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ items, targetLanguage: lang })
+            });
+
+            if (!res.ok) throw new Error('Translation request failed');
+            const resData = await res.json();
+            const transMap = resData.translations || {};
+
+            data._translatedSummary = transMap['summary'] || data.summary;
+            document.getElementById('summaryText').textContent = data._translatedSummary;
+
+            data._translatedRisks = (data.risks || []).map((risk, i) => ({
+                title: transMap[`risk_${i}_title`] || risk.title,
+                explanation: transMap[`risk_${i}_exp`] || (risk.plain_explanation || risk.description),
+                impact: risk.impact_line ? (transMap[`risk_${i}_impact`] || risk.impact_line) : '',
             }));
-            data._translatedRisks = await Promise.all(riskPromises);
             renderRisks(data.risks || [], 'plain', data._translatedRisks);
 
-            // Translate actions
             if (data.actions && data.actions.length > 0) {
-                const actionPromises = data.actions.map(async (a) => ({
-                    title: await translateApi(a.title, lang),
-                    advice: await translateApi(a.advice, lang),
+                data._translatedActions = data.actions.map((a, i) => ({
+                    title: transMap[`action_${i}_title`] || a.title,
+                    advice: transMap[`action_${i}_advice`] || a.advice,
                 }));
-                data._translatedActions = await Promise.all(actionPromises);
                 renderActions(data.actions, data._translatedActions);
             }
 

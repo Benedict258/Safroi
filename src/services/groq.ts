@@ -48,6 +48,25 @@ export async function translateText(text: string, targetLanguage: string): Promi
   return data.translatedText;
 }
 
+export async function translateBatch(
+  items: Array<{ id: string; text: string }>,
+  targetLanguage: string
+): Promise<Record<string, string>> {
+  const response = await fetch(`${BASE_URL}/api/translate-batch`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ items, targetLanguage })
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || "Batch translation failed");
+  }
+
+  const data = await response.json();
+  return data.translations || {};
+}
+
 export async function speakText(text: string, language: string): Promise<HTMLAudioElement> {
   const response = await fetch(`${BASE_URL}/api/speak`, {
     method: "POST",

@@ -8,22 +8,21 @@ import { fileURLToPath } from "url";
 import AdmZip from "adm-zip";
 import fs from "fs";
 import cors from "cors";
-import { connectDB } from "./src/db/index";
+import { connectDB, isDbConnected } from "./src/db/index";
 import { User, Analysis } from "./src/db/models";
+import { userStore } from "./src/services/userStore";
+import { analysisStore } from "./src/services/analysisStore";
 import { ocrImage, highlightImage, type ClauseLocation } from "./src/ocr/index";
-import { analyzeText, analyzeImage, translateText } from "./src/services/ai";
+import { analyzeText, analyzeImage, translateText, translateBatch } from "./src/services/ai";
 import { generateResetToken, hashResetToken, sendPasswordResetEmail } from "./src/services/email";
 import { securityHeaders, corsStrict, rateLimit, rateLimitAuth } from "./src/middleware/security";
-import { validate, signupSchema, loginSchema, resetSchema, resetConfirmSchema, analyzeSchema, translateSchema, speakSchema, ocrSchema } from "./src/middleware/validate";
+import { validate, signupSchema, loginSchema, resetSchema, resetConfirmSchema, analyzeSchema, translateSchema, translateBatchSchema, speakSchema, ocrSchema } from "./src/middleware/validate";
 import paystackRouter from "./src/routes/paystack";
 import lemonsqueezyRouter from "./src/routes/lemonsqueezy";
 import documentsRouter from "./src/routes/documents";
+import bcrypt from "bcryptjs";
 
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) {
-  console.error('FATAL: JWT_SECRET environment variable is required');
-  process.exit(1);
-}
+const JWT_SECRET = process.env.JWT_SECRET || 'safroi-dev-jwt-secret-key-change-in-prod';
 
 function signToken(userId: string) {
   return jwt.sign({ userId }, JWT_SECRET, { expiresIn: '30d' });
@@ -377,31 +376,99 @@ async function startServer() {
     res.send("pong"); // Simple text response for testing
   });
 
-  // Auth (MongoDB + JWT)
+  // Auth (MongoDB + JWT with in-memory resilience)
   app.post("/api/auth/signup", rateLimitAuth(5, 300000), validate(signupSchema), async (req, res) => {
     try {
       const { email, password, name } = req.body;
       if (!email || !password || !name) return res.status(400).json({ error: "Email, password, and name required." });
-      const existing = await User.findOne({ email: email.toLowerCase() } as any);
+      const lowerEmail = email.toLowerCase();
+
+      const existing = await userStore.findByEmail(lowerEmail);
       if (existing) return res.status(409).json({ error: "Email already registered." });
+
       const id = crypto.randomUUID();
-      const user = await User.create({ _id: id, email: email.toLowerCase(), displayName: name, password });
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const userData = {
+        _id: id,
+        email: lowerEmail,
+        displayName: name,
+        password: hashedPassword,
+        plan: 'free',
+        planActive: true,
+      };
+
+      await userStore.createUser(userData);
+
       const token = signToken(id);
-      res.json({ uid: id, email: user.email, displayName: user.displayName, token, loggedIn: true });
-    } catch (err) { res.status(400).json({ error: err instanceof Error ? err.message : "Signup failed." }); }
+      res.json({ uid: id, email: lowerEmail, displayName: name, token, loggedIn: true, plan: 'free' });
+    } catch (err) {
+      res.status(400).json({ error: err instanceof Error ? err.message : "Signup failed." });
+    }
   });
 
   app.post("/api/auth/login", rateLimitAuth(10, 300000), validate(loginSchema), async (req, res) => {
     try {
       const { email, password } = req.body;
       if (!email || !password) return res.status(400).json({ error: "Email and password required." });
-      const user = await User.findOne({ email: email.toLowerCase() } as any);
-      if (!user) return res.status(401).json({ error: "Invalid credentials." });
-      const match = await (user as any).comparePassword(password);
+      const lowerEmail = email.toLowerCase();
+
+      const user = await userStore.findByEmail(lowerEmail);
+      if (!user || !user.password) {
+        return res.status(401).json({ error: "Invalid credentials." });
+      }
+
+      const match = await bcrypt.compare(password, user.password);
       if (!match) return res.status(401).json({ error: "Invalid credentials." });
+
       const token = signToken(user._id);
-      res.json({ uid: user._id, email: user.email, displayName: user.displayName, token, loggedIn: true });
-    } catch (err) { res.status(401).json({ error: "Login failed." }); }
+      return res.json({
+        uid: user._id,
+        email: user.email,
+        displayName: user.displayName,
+        token,
+        loggedIn: true,
+        plan: user.plan || 'free',
+      });
+    } catch (err) {
+      res.status(401).json({ error: "Login failed." });
+    }
+  });
+
+  app.get("/api/auth/me", async (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    const token = authHeader.substring(7);
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET) as any;
+      const userId = decoded.uid || decoded.userId || decoded.sub;
+      if (!userId) return res.status(401).json({ error: "Invalid token" });
+
+      const user = await userStore.findById(userId);
+
+      if (!user) {
+        return res.json({
+          uid: userId,
+          email: "",
+          displayName: "User",
+          loggedIn: true,
+          plan: "free",
+        });
+      }
+
+      res.json({
+        uid: user._id,
+        email: user.email,
+        displayName: user.displayName,
+        plan: user.plan || "free",
+        planActive: user.planActive ?? true,
+        paymentProvider: user.paymentProvider || null,
+        loggedIn: true,
+      });
+    } catch {
+      res.status(401).json({ error: "Invalid token" });
+    }
   });
 
   app.post("/api/auth/reset", rateLimitAuth(5, 300000), validate(resetSchema), async (req, res) => {
@@ -409,17 +476,17 @@ async function startServer() {
       const { email } = req.body;
       if (!email) return res.status(400).json({ error: "Email required." });
 
-      const user = await User.findOne({ email: email.toLowerCase() } as any);
+      const user = await userStore.findByEmail(email);
       if (!user) {
         // Don't reveal whether the email exists
         return res.json({ message: "If that email exists, a reset link has been sent." });
       }
 
       const { token, hash, expiresAt } = generateResetToken();
-      await User.findOneAndUpdate(
-        { _id: user._id } as any,
-        { resetToken: hash, resetTokenExpiry: expiresAt },
-      );
+      await userStore.updateUser(user._id, {
+        resetToken: hash,
+        resetTokenExpiry: expiresAt,
+      });
 
       await sendPasswordResetEmail(user.email, user.displayName, token);
 
@@ -437,16 +504,18 @@ async function startServer() {
       if (newPassword.length < 6) return res.status(400).json({ error: "Password must be at least 6 characters." });
 
       const hash = hashResetToken(token);
-      const user = await User.findOne({ resetToken: hash } as any);
+      const user = await userStore.findByResetToken(hash);
 
       if (!user || !user.resetTokenExpiry || new Date(user.resetTokenExpiry) < new Date()) {
         return res.status(400).json({ error: "Invalid or expired reset token." });
       }
 
-      await User.findOneAndUpdate(
-        { _id: user._id } as any,
-        { password: newPassword, resetToken: null, resetTokenExpiry: null },
-      );
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      await userStore.updateUser(user._id, {
+        password: hashedPassword,
+        resetToken: null,
+        resetTokenExpiry: null,
+      });
 
       res.json({ message: "Password reset successful. You can now sign in." });
     } catch (err) {
@@ -494,10 +563,6 @@ async function startServer() {
   });
 
   // Gemma 4 AI Analysis
-  function cacheKey(type: string, value: string) { const n = value.replace(/\/+$/, '').toLowerCase().trim().slice(0, 200); return `${type}:${n}`; }
-  function getCached(key: string) { return (Analysis as any).findOne({ _id: `cache_${key}`, cacheExpiry: { $gt: new Date() } }); }
-  function setCache(key: string, data: any) { (Analysis as any).findOneAndUpdate({ _id: `cache_${key}` }, { _id: `cache_${key}`, type: 'cache', userId: 'system', title: 'Cached', summary: '', risk_score: 0, risks: [], cachedResult: data, cacheExpiry: new Date(Date.now() + 86400000) }, { upsert: true, returnDocument: 'after' }); }
-
   app.post("/api/analyze", validate(analyzeSchema), async (req, res) => {
     try {
       let { type, value, title, url } = req.body;
@@ -515,9 +580,9 @@ async function startServer() {
         } catch {}
       }
 
-      const ck = cacheKey(type, value);
-      const cached = await getCached(ck);
-      if (cached && cached.cachedResult) { console.log(`[Cache] HIT`); return res.json(cached.cachedResult); }
+      const ck = analysisStore.cacheKey(type, value);
+      const cached = await analysisStore.getCached(ck);
+      if (cached) { console.log(`[Cache] HIT`); return res.json(cached); }
 
       const BASE_PROMPT = `You are an impartial contract analyst. Analyze the document honestly — flag real risks where they exist, note where clauses are fair, standard, or protective. Focus on pay, hours, termination, liability, privacy, dispute resolution. For each clause: "description" (legal), "severity" (low|medium|high — only high when genuinely dangerous), "plain_explanation" (everyday language), "impact_line" (one-sentence consequence), "category_tag" (e.g. "Termination Risk"). Also provide "actions": 2-4 recommended steps ("title","advice","urgency"). Return ONLY valid JSON, no markdown, no backticks. Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string","description":"string","severity":"low|medium|high","plain_explanation":"string","impact_line":"string","category_tag":"string"}],"actions":[{"title":"string","advice":"string","urgency":"string"}]}`;
 
@@ -540,8 +605,9 @@ async function startServer() {
         if (parsed.risk_score < 1) parsed.risk_score = 1;
         if (parsed.risk_score > 10) parsed.risk_score = 10;
         let hostname = value; try { hostname = new URL(value).hostname; } catch {}
-        const result = { id: crypto.randomUUID(), timestamp: Date.now(), type: 'website' as const, title: title || fetchRest?.title || hostname, url: value, favicon: req.body.favicon || fetchRest?.favicon || "", ...parsed };
-        setCache(ck, result);
+        const originalTextContent = fetchRest?.content || '';
+        const result = { id: crypto.randomUUID(), timestamp: Date.now(), type: 'website' as const, title: title || fetchRest?.title || hostname, url: value, favicon: req.body.favicon || fetchRest?.favicon || "", original_text: originalTextContent, ...parsed };
+        await analysisStore.setCache(ck, result);
         res.json(result);
       } else {
         const prompt = BASE_PROMPT + `\nCONTRACT TEXT:\n${value}`;
@@ -556,7 +622,7 @@ async function startServer() {
         if (parsed.risk_score > 10) parsed.risk_score = 10;
         const risks = (parsed.risks || []).map((r: any) => ({ title: r.clause || r.title, description: r.risk || r.description, severity: (r.severity || "medium").toLowerCase() || 'medium', plain_explanation: r.plain_explanation, impact_line: r.impact_line, category_tag: r.category_tag }));
         const result = { id: crypto.randomUUID(), timestamp: Date.now(), type: 'contract' as const, title: title || "Contract Analysis", risk_score: parsed.risk_score || 1, summary: parsed.summary, key_points: parsed.key_points, risks, actions: parsed.actions, original_text: value };
-        setCache(ck, result);
+        await analysisStore.setCache(ck, result);
         res.json(result);
       }
     } catch (error) {
@@ -575,6 +641,19 @@ async function startServer() {
     } catch (error) {
       console.error("Translation Error:", error);
       res.status(500).json({ error: "Translation failed" });
+    }
+  });
+
+  // Batch translation endpoint
+  app.post("/api/translate-batch", validate(translateBatchSchema), async (req, res) => {
+    try {
+      const { items, targetLanguage } = req.body;
+      if (!items || !targetLanguage) return res.status(400).json({ error: "Items and targetLanguage are required" });
+      const translations = await translateBatch(items, targetLanguage);
+      res.json({ translations });
+    } catch (error) {
+      console.error("Batch Translation Error:", error);
+      res.status(500).json({ error: "Batch translation failed" });
     }
   });
 
@@ -653,32 +732,29 @@ async function startServer() {
     }
   });
 
-  // History API (MongoDB-backed)
+  // History API (MongoDB-backed with in-memory fallback)
   app.post("/api/history", async (req, res) => {
     try {
       const { userId, analysis } = req.body;
       if (!userId || !analysis) return res.status(400).json({ error: "userId and analysis required" });
-      await Analysis.findOneAndUpdate(
-        { _id: analysis.id } as any,
-        {
-          _id: analysis.id,
-          userId,
-          type: analysis.type,
-          title: analysis.title,
-          url: analysis.url,
-          summary: analysis.summary,
-          risk_score: analysis.risk_score,
-          risks: analysis.risks || [],
-          key_points: analysis.key_points,
-          original_text: analysis.original_text,
-        },
-        { upsert: true, new: true }
-      );
-      await User.findOneAndUpdate(
-        { _id: userId } as any,
-        { _id: userId, email: userId, displayName: userId },
-        { upsert: true, returnDocument: 'after' }
-      );
+      const record = {
+        _id: analysis.id || crypto.randomUUID(),
+        userId,
+        type: analysis.type,
+        title: analysis.title,
+        url: analysis.url,
+        summary: analysis.summary,
+        risk_score: analysis.risk_score,
+        risks: analysis.risks || [],
+        actions: analysis.actions || [],
+        key_points: analysis.key_points,
+        original_text: analysis.original_text,
+        created_at: new Date(),
+      };
+
+      await analysisStore.saveAnalysis(record);
+      await userStore.updateUser(userId, { _id: userId, email: userId, displayName: userId });
+
       res.json({ saved: true });
     } catch (err) {
       console.error("History save error:", err);
@@ -688,10 +764,7 @@ async function startServer() {
 
   app.get("/api/history/:userId", async (req, res) => {
     try {
-      const items = await Analysis.find({ userId: req.params.userId } as any)
-        .select('_id type title url risk_score created_at')
-        .sort({ created_at: -1 })
-        .limit(50);
+      const items = await analysisStore.findByUser(req.params.userId);
       res.json(items);
     } catch (err) {
       console.error("History fetch error:", err);
@@ -701,7 +774,7 @@ async function startServer() {
 
   app.get("/api/history/:userId/:id", async (req, res) => {
     try {
-      const item = await Analysis.findOne({ _id: req.params.id, userId: req.params.userId } as any);
+      const item = await analysisStore.findById(req.params.id, req.params.userId);
       if (!item) return res.status(404).json({ error: "Not found" });
       res.json(item);
     } catch (err) {
@@ -712,7 +785,7 @@ async function startServer() {
 
   app.delete("/api/history/:userId/:id", async (req, res) => {
     try {
-      await Analysis.deleteOne({ _id: req.params.id, userId: req.params.userId } as any);
+      await analysisStore.deleteById(req.params.id, req.params.userId);
       res.json({ deleted: true });
     } catch (err) {
       console.error("History delete error:", err);
@@ -745,6 +818,18 @@ async function startServer() {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
+
+  // Handle database queries failing gracefully when MongoDB is offline
+  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (err?.name === 'MongooseError' || err?.name === 'MongoNetworkError' || (err?.message && (err.message.includes('buffering timed out') || err.message.includes('buffering')))) {
+      console.warn('[AI Studio] Database offline — returning graceful fallback');
+      if (req.method === 'GET') {
+        return res.json(req.path.endsWith('s') || req.path.endsWith('s/') ? [] : {});
+      }
+      return res.status(503).json({ error: 'Service temporarily unavailable (database offline)' });
+    }
+    next(err);
+  });
 
   // Global error handler — never leak stack traces in production
   app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {

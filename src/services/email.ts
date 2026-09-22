@@ -72,7 +72,8 @@ export async function sendPasswordResetEmail(
 
     // Try nodemailer if available, otherwise fall back to raw SMTP
     try {
-      const nodemailer = await import('nodemailer');
+      const nodemailerModuleName = 'nodemailer';
+      const nodemailer: any = await import(/* @vite-ignore */ nodemailerModuleName);
       const transporter = nodemailer.default.createTransport({
         host: SMTP_HOST,
         port: SMTP_PORT,
