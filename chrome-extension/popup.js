@@ -1,5 +1,5 @@
 // Safroi Popup Script
-let BASE_URL = "https://safroi.suirify.com"; // Default production
+let BASE_URL = "https://safroi.onrender.com"; // Default production
 let isConfigLoaded = false;
 let configPromise = null;
 
