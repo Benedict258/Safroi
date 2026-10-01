@@ -11,7 +11,9 @@ import { connectDB } from "./src/db/index";
 import { User, Analysis } from "./src/db/models";
 import mongoose from "mongoose";
 import { ocrImage, highlightImage, decodeImageInput, InvalidImageError, type ClauseLocation } from "./src/ocr/index";
-import { analyzeText, analyzeImage, translateText } from "./src/services/ai";
+import { analyzeText, analyzeImage, translateWithMeta } from "./src/services/ai";
+import { nimCheckModels } from "./src/services/nim";
+import { natlasConfigured, natlasHealth } from "./src/services/natlas";
 import { generateResetToken, hashResetToken, sendPasswordResetEmail } from "./src/services/email";
 import { securityHeaders, corsStrict, rateLimit, rateLimitAuth } from "./src/middleware/security";
 import { validate, signupSchema, loginSchema, resetSchema, resetConfirmSchema, analyzeSchema, translateSchema, speakSchema, ocrSchema } from "./src/middleware/validate";
@@ -67,9 +69,8 @@ function isRefusal(text: string): boolean {
 }
 
 function validateEnv() {
-  const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-  if (!key) { console.warn('GEMINI_API_KEY not set.'); }
-  else { console.log('Gemini API key found.'); }
+  if (!process.env.NVIDIA_API_KEY && !(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY)) { console.warn('NVIDIA_API_KEY not set (and no Gemini fallback key). AI features will fail.'); }
+  else if (process.env.NVIDIA_API_KEY) { console.log('NVIDIA API key found.'); }
   const mongoUri = process.env.MONGODB_URI;
   if (!mongoUri) { console.warn('MONGODB_URI not set. History and caching will be unavailable.'); }
   else { console.log('MongoDB URI found.'); }
@@ -406,7 +407,7 @@ Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string"
     try {
       const { text, targetLanguage } = req.body;
       if (!text || !targetLanguage) return res.status(400).json({ error: "Text and language required." });
-      res.json({ translatedText: await translateText(text, targetLanguage) });
+      res.json(await translateWithMeta(text, targetLanguage));
     } catch { res.status(500).json({ error: "Translation failed." }); }
   });
 
@@ -519,6 +520,8 @@ Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string"
 
   const server = app.listen(PORT, "0.0.0.0", () => {
     console.log(`Safroi API running on port ${PORT}`);
+    nimCheckModels();
+    if (natlasConfigured()) natlasHealth().then(ok => console.log(ok ? '[N-ATLaS] server reachable' : '[N-ATLaS] WARNING: configured but not reachable; falling back to NIM for translation'));
     connectDB().then(ok => { if (!ok) console.warn('[MongoDB] Running without database.'); });
   });
 

@@ -167,6 +167,19 @@ export const documentStore = {
     }
   },
 
+  async replaceChunkEmbeddings(documentId: string, updated: StoredChunk[]): Promise<void> {
+    const byId = new Map(updated.map(c => [c._id, c]));
+    const mem = globalStore.chunks.get(documentId);
+    if (mem) globalStore.chunks.set(documentId, mem.map(c => byId.get(c._id) || c));
+    if (isDbReady()) {
+      try {
+        await (Chunk as any).bulkWrite(updated.map(c => ({ updateOne: { filter: { _id: c._id }, update: { $set: { embedding: c.embedding } } } })));
+      } catch (err) {
+        console.warn('[DocStore] Failed to update chunk embeddings:', err);
+      }
+    }
+  },
+
   async getChunks(documentId: string): Promise<StoredChunk[]> {
     if (isDbReady()) {
       try {

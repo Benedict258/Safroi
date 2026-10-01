@@ -13,7 +13,9 @@ import { User, Analysis } from "./src/db/models";
 import { userStore } from "./src/services/userStore";
 import { analysisStore } from "./src/services/analysisStore";
 import { ocrImage, highlightImage, decodeImageInput, InvalidImageError, type ClauseLocation } from "./src/ocr/index";
-import { analyzeText, analyzeImage, translateText, translateBatch } from "./src/services/ai";
+import { analyzeText, analyzeImage, translateWithMeta, translateBatch } from "./src/services/ai";
+import { nimCheckModels } from "./src/services/nim";
+import { natlasConfigured, natlasHealth } from "./src/services/natlas";
 import { generateResetToken, hashResetToken, sendPasswordResetEmail } from "./src/services/email";
 import { securityHeaders, corsStrict, rateLimit, rateLimitAuth } from "./src/middleware/security";
 import { validate, signupSchema, loginSchema, resetSchema, resetConfirmSchema, analyzeSchema, translateSchema, translateBatchSchema, speakSchema, ocrSchema } from "./src/middleware/validate";
@@ -58,14 +60,12 @@ function isRefusal(text: string): boolean {
 
 // Path resolution is handled via process.cwd() for bundled compatibility
 
-// Gemini/Gemma AI — auto-detects GEMINI_API_KEY or GOOGLE_API_KEY
+// AI providers: NVIDIA NIM (primary), N-ATLaS (Hausa/Yoruba/Igbo translation), optional Gemini fallback
 function validateEnv() {
-  const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-  if (!key) {
-    console.warn('WARNING: GEMINI_API_KEY or GOOGLE_API_KEY not set.');
-    console.warn('AI features will fail. Get a key at https://aistudio.google.com/apikey');
-  } else {
-    console.log('Gemini API key found.');
+  if (!process.env.NVIDIA_API_KEY && !(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY)) {
+    console.warn('WARNING: NVIDIA_API_KEY not set (and no Gemini fallback key). AI features will fail.');
+  } else if (process.env.NVIDIA_API_KEY) {
+    console.log('NVIDIA API key found.');
   }
   const mongoUri = process.env.MONGODB_URI;
   if (!mongoUri) {
@@ -637,8 +637,7 @@ async function startServer() {
     try {
       const { text, targetLanguage } = req.body;
       if (!text || !targetLanguage) return res.status(400).json({ error: "Text and targetLanguage are required" });
-      const translated = await translateText(text, targetLanguage);
-      res.json({ translatedText: translated });
+      res.json(await translateWithMeta(text, targetLanguage));
     } catch (error) {
       console.error("Translation Error:", error);
       res.status(500).json({ error: "Translation failed" });
@@ -846,6 +845,8 @@ async function startServer() {
   const server = app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
     connectDB();
+    nimCheckModels();
+    if (natlasConfigured()) natlasHealth().then(ok => console.log(ok ? '[N-ATLaS] server reachable' : '[N-ATLaS] WARNING: configured but not reachable; falling back to NIM for translation'));
   });
 
   // Graceful shutdown

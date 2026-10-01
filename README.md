@@ -8,15 +8,14 @@ Built for the **AI for Africa Hackathon — Minna 2026**, AI for Social Impact t
 
 ---
 
-## How Gemma 4 Is Used
+## How the AI Layer Works
 
-Every risk-analysis, plain-language explanation, and translation call in Safroi runs through **Gemma 4 (`gemma-4-26b-a4b-it`)**, accessed via the **Gemini API**. Specifically:
+- **Contract / policy analysis** runs on **NVIDIA NIM** (free endpoint): `nvidia/nemotron-3-super-120b-a12b` with `google/gemma-4-31b-it` as fallback, returning schema-constrained JSON (risk level, legal and plain-language explanations, impact line, category). Scanned photos use `meta/llama-3.2-11b-vision-instruct` or Tesseract OCR.
+- **Hausa, Yoruba and Igbo translation** uses **N-ATLaS** (`NCAIR1/N-ATLaS`, a Llama-3 8B fine-tune by NCAIR / Awarri), self-hosted behind an OpenAI-compatible endpoint (`deploy/natlas_colab.ipynb`). If it is unreachable the app falls back to NIM; other languages use NIM directly. Translations are cached.
+- **Document chat** embeds with `nvidia/nemotron-3-embed-1b` and answers from retrieved excerpts with citations.
+- Gemini is an optional last-resort fallback when `GEMINI_API_KEY` is set. All model ids are configurable (see `.env.example`); the server checks them against NVIDIA's live catalog at startup.
 
-- **Clause risk analysis** — given extracted contract or webpage text, Gemma 4 identifies individual clauses, classifies each as high/medium/low risk, and returns a **schema-constrained response**: a legal/technical explanation, a plain-language explanation, a one-sentence real-world impact statement, and a category tag (e.g. "Termination Risk"). The prompt frames the model as an impartial contract analyst — "flag real risks where they exist, and note where clauses are fair, standard, or protective. Do not assume every clause is exploitative." See `server-api.ts:216-219` for the exact prompt.
-- **Translation** — plain-language explanations are translated into supported languages (prioritizing Hausa, Yoruba, and Igbo) via the same Gemma 4 model via `src/services/ai.ts:71-86`.
-- **Website/policy analysis (browser extension)** — the extension calls the same backend API endpoint (`/api/analyze`) as the web app, running through the identical Gemma 4 pipeline. Extension service worker at `chrome-extension/background.js:142-150`.
-
-No fine-tuning, no RAG — reliability comes from **schema-constrained output**, **role framing** (the model is prompted to reason as an impartial contract reviewer, not a generic assistant), and explicit tone constraints.
+N-ATLaS is an initiative of the Federal Ministry of Communications, Innovation and Digital Economy, and powered by Awarri Technologies. Its license caps use at 1,000 active users per 30 days and is not for commercial use without a separate agreement with Awarri.
 
 ---
 

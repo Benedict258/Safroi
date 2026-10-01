@@ -486,6 +486,9 @@ export default function App() {
           </div>
           <div className="pt-8 border-t border-white/5 text-center text-white/10 text-xs font-bold tracking-widest uppercase">
             <p>© 2026 Safroi. All rights reserved.</p>
+            <p className="mt-3 normal-case tracking-normal font-medium text-white/30 max-w-2xl mx-auto">
+              Hausa, Yoruba and Igbo translations use N-ATLaS, an initiative of the Federal Ministry of Communications, Innovation and Digital Economy, and powered by Awarri Technologies. AI translations can contain errors; verify important legal terms with a qualified professional.
+            </p>
           </div>
         </div>
       </footer>

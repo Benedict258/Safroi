@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import pdfParse from 'pdf-parse';
 import mammoth from 'mammoth';
-import { generateEmbedding, analyzeText } from './ai';
+import { generateEmbedding, generateEmbeddings, analyzeText } from './ai';
 import { ocrImage } from './ocr';
 import { fetchWebsiteContent } from './web';
 import { documentStore, StoredDocument, StoredChunk } from './documentStore';
@@ -117,25 +117,24 @@ export async function ingestDocument(userId: string, params: {
 
     const textChunks = chunkText(text);
     const chunkDocs: StoredChunk[] = [];
-    
+
+    let embeddings: number[][] = textChunks.map(() => []);
+    try {
+      embeddings = await generateEmbeddings(textChunks, 'passage');
+    } catch (embErr) {
+      console.warn('[Document] Embedding failed; falling back to keyword search:', embErr);
+    }
     for (let i = 0; i < textChunks.length; i++) {
-      const chunkStr = textChunks[i];
-      let embedding: number[] = [];
-      try {
-        embedding = await generateEmbedding(chunkStr);
-      } catch (embErr) {
-        console.warn(`[Document] Embedding failed for chunk ${i}:`, embErr);
-      }
       chunkDocs.push({
         _id: uuidv4(),
         documentId,
         chunkIndex: i,
-        text: chunkStr,
-        embedding,
-        tokenCount: tokenCount(chunkStr)
+        text: textChunks[i],
+        embedding: embeddings[i] || [],
+        tokenCount: tokenCount(textChunks[i])
       });
     }
-    
+
     await documentStore.saveChunks(documentId, chunkDocs);
     await documentStore.updateDocumentStatus(documentId, 'ready');
 
@@ -153,9 +152,23 @@ export async function findRelevantChunks(documentId: string, query: string, topK
 
   let queryEmbedding: number[] = [];
   try {
-    queryEmbedding = await generateEmbedding(query);
+    queryEmbedding = await generateEmbedding(query, 'query');
   } catch (err) {
     console.warn('[Document] Query embedding failed:', err);
+  }
+
+  // Chunks embedded by an earlier model (different vector size) can't be compared: re-embed them once.
+  if (queryEmbedding.length > 0) {
+    const stale = chunks.filter(c => !c.embedding || c.embedding.length !== queryEmbedding.length);
+    if (stale.length > 0) {
+      try {
+        const fresh = await generateEmbeddings(stale.map(c => c.text), 'passage');
+        stale.forEach((c, i) => { if (fresh[i]?.length) c.embedding = fresh[i]; });
+        await documentStore.replaceChunkEmbeddings(documentId, stale);
+      } catch (err) {
+        console.warn('[Document] Re-embedding stale chunks failed:', err);
+      }
+    }
   }
 
   const queryTerms = query.toLowerCase().replace(/[^\w\s]/g, ' ').split(/\s+/).filter(w => w.length > 2);

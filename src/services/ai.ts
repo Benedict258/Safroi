@@ -1,91 +1,72 @@
 import { GoogleGenAI } from "@google/genai";
-import { generateWithGLM5, analyzeContractWithGLM, checkImageSafety } from './nvidia-ai';
+import { createHash } from 'crypto';
+import { nimChat, nimEmbed, nimConfigured, NIM_MODELS } from './nim';
+import { natlasChat, natlasAvailable, NATLAS_LANGUAGES, NATLAS_MAX_INPUT_CHARS } from './natlas';
 
-const EMBEDDING_MODELS = [
-  process.env.EMBEDDING_MODEL,
-  "gemini-embedding-2",
-  "gemini-embedding-001",
-  "gemini-embedding-2-preview"
-].filter(Boolean) as string[];
-
+// Gemini is now an optional last-resort fallback: only used when a key is configured.
 let client: GoogleGenAI | null = null;
 
-function getClient(): GoogleGenAI {
-  if (!client) {
-    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-    if (!apiKey) throw new Error("GEMINI_API_KEY or GOOGLE_API_KEY is required.");
-    client = new GoogleGenAI({ apiKey });
-  }
+function getGeminiClient(): GoogleGenAI | null {
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  if (!apiKey) return null;
+  if (!client) client = new GoogleGenAI({ apiKey });
   return client;
 }
 
+const GEMINI_MODELS = () => [process.env.GEMINI_MODEL, "gemini-2.5-flash", "gemma-4-26b-a4b-it", "gemma-4-31b-it"].filter(Boolean) as string[];
+
+function warn(label: string, err: unknown) {
+  console.warn(`[AI] ${label} failed:`, err instanceof Error ? err.message : err);
+}
+
 export async function analyzeText(prompt: string): Promise<string> {
-  let ai: GoogleGenAI | null = null;
-  try {
-    ai = getClient();
-  } catch (e) {
-    console.warn('[AI] Gemini client error:', e);
+  if (nimConfigured()) {
+    for (const model of [NIM_MODELS.analysis, NIM_MODELS.fallback]) {
+      try {
+        const text = await nimChat([{ role: 'user', content: prompt }], { model, maxTokens: 8192 });
+        if (text.trim().length > 5) return text;
+      } catch (err) { warn(`NIM ${model}`, err); }
+    }
   }
-
+  const ai = getGeminiClient();
   if (ai) {
-    const candidateModels = [
-      process.env.GEMINI_MODEL,
-      "gemini-2.5-flash",
-      "gemini-2.5-pro",
-      "gemini-3.8-flash",
-      "gemma-4-26b-a4b-it",
-      "gemma-4-31b-it"
-    ].filter(Boolean) as string[];
-
-    for (const model of candidateModels) {
+    for (const model of GEMINI_MODELS()) {
       try {
         const res = await ai.models.generateContent({
           model,
           contents: [{ role: "user", parts: [{ text: prompt }] }],
           config: { temperature: 0.1, maxOutputTokens: 8192 },
         });
-        const text = res.text || "";
-        if (text && text.trim().length > 5) {
-          return text;
-        }
-      } catch (err) {
-        console.warn(`[AI] Model ${model} failed, trying next candidate:`, err instanceof Error ? err.message : err);
-      }
+        if (res.text && res.text.trim().length > 5) return res.text;
+      } catch (err) { warn(`Gemini ${model}`, err); }
     }
   }
-
-  try {
-    const nimRes = await generateWithGLM5([{ role: 'user', content: prompt }]);
-    if (nimRes && nimRes.trim().length > 5) return nimRes;
-  } catch (nimErr) {
-    console.warn('[AI] NIM fallback failed:', nimErr);
-  }
-
   throw new Error("All AI models are temporarily unavailable. Please try again in a moment.");
 }
 
 export async function analyzeImage(imageBase64: string, mimeType: string, prompt: string): Promise<string> {
-  const ai = getClient();
   let lastError: Error | null = null;
-  const imageModels = [
-    process.env.GEMINI_MODEL,
-    "gemini-2.5-flash",
-    "gemini-2.5-pro",
-    "gemini-3.8-flash",
-    "gemma-4-26b-a4b-it",
-    "gemma-4-31b-it"
-  ].filter(Boolean) as string[];
-
-  for (const model of imageModels) {
-    try {
-      const res = await ai.models.generateContent({
-        model,
-        contents: [{ role: "user", parts: [{ text: prompt }, { inlineData: { mimeType, data: imageBase64 } }] }],
-        config: { temperature: 0.1, maxOutputTokens: 8192 },
-      });
-      return res.text || "";
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
+  if (nimConfigured()) {
+    for (const model of [NIM_MODELS.vision, NIM_MODELS.fallback]) {
+      try {
+        return await nimChat(
+          [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: `data:${mimeType};base64,${imageBase64}` } }] }],
+          { model, maxTokens: 8192 },
+        );
+      } catch (err) { lastError = err instanceof Error ? err : new Error(String(err)); warn(`NIM vision ${model}`, err); }
+    }
+  }
+  const ai = getGeminiClient();
+  if (ai) {
+    for (const model of GEMINI_MODELS()) {
+      try {
+        const res = await ai.models.generateContent({
+          model,
+          contents: [{ role: "user", parts: [{ text: prompt }, { inlineData: { mimeType, data: imageBase64 } }] }],
+          config: { temperature: 0.1, maxOutputTokens: 8192 },
+        });
+        if (res.text) return res.text;
+      } catch (err) { lastError = err instanceof Error ? err : new Error(String(err)); }
     }
   }
   throw lastError || new Error("All models failed on image");
@@ -118,34 +99,74 @@ export function cleanTranslationOutput(raw: string, fallback: string): string {
   return text || fallback;
 }
 
-export async function translateText(text: string, targetLanguage: string): Promise<string> {
-  if (targetLanguage === 'English') return text;
-  if (!text || text.length < 2) return text;
-  try {
-    const ai = getClient();
-    const prompt = `You are a professional legal translator. Translate the following text into ${targetLanguage}.
+export type TranslationProvider = 'natlas' | 'nim' | 'gemini' | 'none';
+export interface TranslationResult { translatedText: string; provider: TranslationProvider; }
+
+const TRANSLATE_SYSTEM = 'You are a professional legal translator.';
+const translatePrompt = (text: string, lang: string) => `Translate the following text into ${lang}.
 
 CRITICAL RULES:
 - Output ONLY the single, direct, natural, professional translation.
-- NEVER provide multiple options (do NOT write "Option 1", "Option 2", etc.).
-- NEVER provide vocabulary breakdowns, glossaries, notes, bullet points, or grammatical explanations.
-- Do NOT wrap the translation in quotes or blockquotes (>).
-- Output ONLY the translated text.
+- NEVER provide multiple options, vocabulary breakdowns, glossaries, notes or explanations.
+- Do NOT wrap the translation in quotes.
 
 TEXT TO TRANSLATE:
 ${text}`;
 
-    const res = await ai.models.generateContent({
-      model: "gemma-4-26b-a4b-it",
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      config: { temperature: 0.1, maxOutputTokens: 2048 },
-    });
-    const raw = res.text?.trim() || '';
-    return cleanTranslationOutput(raw, text);
-  } catch (err) {
-    console.warn('[Translate] Error:', err);
-    return text;
+// Translations are deterministic enough to cache; a clause explanation is often requested repeatedly.
+const CACHE_MAX = 2000;
+const translationCache = new Map<string, TranslationResult>();
+const cacheKey = (text: string, lang: string) => createHash('sha256').update(`${lang}\n${text}`).digest('hex');
+
+export async function translateWithMeta(text: string, targetLanguage: string): Promise<TranslationResult> {
+  if (targetLanguage === 'English' || !text || text.length < 2) return { translatedText: text, provider: 'none' };
+  const key = cacheKey(text, targetLanguage);
+  const hit = translationCache.get(key);
+  if (hit) return hit;
+
+  const maxTokens = Math.min(2048, Math.max(256, text.length * 2));
+  const messages = [
+    { role: 'system' as const, content: TRANSLATE_SYSTEM },
+    { role: 'user' as const, content: translatePrompt(text, targetLanguage) },
+  ];
+  let result: TranslationResult | null = null;
+
+  // 1) N-ATLaS for Hausa / Yoruba / Igbo
+  if (NATLAS_LANGUAGES.has(targetLanguage) && natlasAvailable() && text.length <= NATLAS_MAX_INPUT_CHARS) {
+    try {
+      const out = cleanTranslationOutput(await natlasChat(messages, { maxTokens }), '');
+      if (out) result = { translatedText: out, provider: 'natlas' };
+    } catch (err) { warn('N-ATLaS translate', err); }
   }
+  // 2) NVIDIA NIM general model (the reasoning analysis model is not used here: its Hausa/Yoruba/Igbo is poor)
+  if (!result && nimConfigured()) {
+    try {
+      const out = cleanTranslationOutput(await nimChat(messages, { model: NIM_MODELS.fallback, maxTokens, timeoutMs: 60_000 }), '');
+      if (out) result = { translatedText: out, provider: 'nim' };
+    } catch (err) { warn('NIM translate', err); }
+  }
+  // 3) Optional Gemini fallback
+  const ai = !result ? getGeminiClient() : null;
+  if (ai) {
+    try {
+      const res = await ai.models.generateContent({
+        model: "gemma-4-26b-a4b-it",
+        contents: [{ role: "user", parts: [{ text: translatePrompt(text, targetLanguage) }] }],
+        config: { temperature: 0.1, maxOutputTokens: 2048 },
+      });
+      const out = cleanTranslationOutput(res.text?.trim() || '', '');
+      if (out) result = { translatedText: out, provider: 'gemini' };
+    } catch (err) { warn('Gemini translate', err); }
+  }
+
+  if (!result) return { translatedText: text, provider: 'none' }; // not cached: retry next time
+  if (translationCache.size >= CACHE_MAX) translationCache.delete(translationCache.keys().next().value as string);
+  translationCache.set(key, result);
+  return result;
+}
+
+export async function translateText(text: string, targetLanguage: string): Promise<string> {
+  return (await translateWithMeta(text, targetLanguage)).translatedText;
 }
 
 export async function translateBatch(
@@ -153,116 +174,24 @@ export async function translateBatch(
   targetLanguage: string
 ): Promise<Record<string, string>> {
   const result: Record<string, string> = {};
-  if (!items || items.length === 0) return result;
-
-  if (targetLanguage === 'English') {
-    items.forEach(it => { result[it.id] = it.text; });
-    return result;
-  }
-
-  try {
-    const ai = getClient();
-    const prompt = `You are a professional legal translator. Translate the provided list of text entries into ${targetLanguage}.
-
-CRITICAL RULES:
-- Return ONLY a valid JSON object where keys are the input "id"s and values are the single, direct, natural, high quality translations.
-- Do NOT provide multiple options or alternatives.
-- Do NOT include vocabulary breakdowns, glossaries, notes, bullet points, or explanations.
-- Do NOT wrap translated values in quotes or blockquotes.
-- Output ONLY valid JSON, no markdown outside of JSON.
-
-INPUT ITEMS:
-${JSON.stringify(items.map(it => ({ id: it.id, text: it.text })), null, 2)}`;
-
-    const res = await ai.models.generateContent({
-      model: "gemma-4-26b-a4b-it",
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      config: { temperature: 0.1, maxOutputTokens: 4096 },
-    });
-
-    const raw = res.text?.trim() || '';
-    // Extract JSON block if present
-    const jsonMatch = raw.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      items.forEach(it => {
-        const val = parsed[it.id];
-        result[it.id] = typeof val === 'string' ? cleanTranslationOutput(val, it.text) : it.text;
-      });
-      return result;
-    }
-  } catch (err) {
-    console.warn('[TranslateBatch] Batch failed, falling back to individual:', err);
-  }
-
-  // Fallback: translate individually in parallel with limit
-  await Promise.all(
-    items.map(async (it) => {
-      result[it.id] = await translateText(it.text, targetLanguage);
-    })
-  );
+  // Small concurrency: the N-ATLaS server handles one request at a time.
+  const queue = [...(items || [])];
+  const worker = async () => {
+    for (let it = queue.shift(); it; it = queue.shift()) result[it.id] = await translateText(it.text, targetLanguage);
+  };
+  await Promise.all([worker(), worker()]);
   return result;
 }
 
-export function generateLocalVector(text: string, dims = 128): number[] {
-  const vec = new Array(dims).fill(0);
-  const words = text.toLowerCase().replace(/[^\w\s]/g, ' ').split(/\s+/).filter(Boolean);
-  if (words.length === 0) return vec;
-  
-  for (const word of words) {
-    let hash = 0;
-    for (let i = 0; i < word.length; i++) {
-      hash = ((hash << 5) - hash) + word.charCodeAt(i);
-      hash |= 0;
-    }
-    const idx = Math.abs(hash) % dims;
-    vec[idx] += 1;
+/** Embeddings via NVIDIA NIM. Returns [] when unavailable so callers fall back to keyword search. */
+export async function generateEmbeddings(texts: string[], type: 'query' | 'passage' = 'passage'): Promise<number[][]> {
+  if (texts.length === 0) return [];
+  if (nimConfigured()) {
+    try { return await nimEmbed(texts, type); } catch (err) { warn('NIM embeddings', err); }
   }
-  
-  let norm = 0;
-  for (let i = 0; i < dims; i++) norm += vec[i] * vec[i];
-  norm = Math.sqrt(norm);
-  if (norm > 0) {
-    for (let i = 0; i < dims; i++) vec[i] /= norm;
-  }
-  return vec;
+  return texts.map(() => []);
 }
 
-export async function generateEmbedding(text: string): Promise<number[]> {
-  try {
-    const ai = getClient();
-    for (const model of EMBEDDING_MODELS) {
-      try {
-        const res = await ai.models.embedContent({
-          model,
-          contents: text,
-        });
-        const values = res.embeddings?.[0]?.values || (res as any).embedding?.values;
-        if (values && values.length > 0) {
-          return values;
-        }
-      } catch {
-        // try next embedding model candidate
-      }
-    }
-  } catch (err) {
-    console.warn('[Embedding] AI client unavailable for embedding:', err);
-  }
-  return generateLocalVector(text, 128);
+export async function generateEmbedding(text: string, type: 'query' | 'passage' = 'passage'): Promise<number[]> {
+  return (await generateEmbeddings([text], type))[0] || [];
 }
-
-// NVIDIA NIM Integration for GLM-5.3
-export async function analyzeContractNIM(
-  contractText: string,
-  targetLanguage: string = 'English'
-): Promise<string> {
-  return analyzeContractWithGLM(contractText, targetLanguage);
-}
-
-export async function checkImageSafetyNIM(
-  imageBase64: string,
-  mimeType: string
-): Promise<{ safe: boolean; reasons?: string[] }> {
-  return checkImageSafety(imageBase64, mimeType);
-}
-
