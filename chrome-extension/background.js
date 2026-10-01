@@ -143,9 +143,13 @@ async function analyzeDomain(domain, fullUrl, favicon) {
     } catch (e) {}
 
     const cleanBase = BASE_URL.endsWith('/') ? BASE_URL.slice(0, -1) : BASE_URL;
+    // Logged-in users send their token so scans count against their plan, not the guest allowance
+    const { auth_user } = await chrome.storage.local.get(['auth_user']);
+    const headers = { 'Content-Type': 'application/json' };
+    if (auth_user && auth_user.token) headers['Authorization'] = `Bearer ${auth_user.token}`;
     const response = await fetch(`${cleanBase}/api/analyze`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       credentials: 'include',
       body: JSON.stringify({ type: 'website', value: fullUrl, url: fullUrl })
     });

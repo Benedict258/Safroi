@@ -23,6 +23,7 @@ import paystackRouter from "./src/routes/paystack";
 import lemonsqueezyRouter from "./src/routes/lemonsqueezy";
 import documentsRouter from "./src/routes/documents";
 import { requireAuth, requireSelf, getJwtSecret } from "./src/middleware/auth";
+import { optionalAuth, scanQuota } from "./src/middleware/usage";
 import bcrypt from "bcryptjs";
 
 const JWT_SECRET = getJwtSecret();
@@ -316,6 +317,8 @@ async function fetchWebsiteContent(inputUrl: string) {
 async function startServer() {
   validateEnv();
   const app = express();
+  // Behind Render's proxy every client would otherwise share one IP, so rate limits and quotas hit all users together.
+  app.set('trust proxy', 1);
   const PORT = Number(process.env.PORT) || 3000;
 
   // Security headers
@@ -564,7 +567,7 @@ async function startServer() {
   });
 
   // Gemma 4 AI Analysis
-  app.post("/api/analyze", validate(analyzeSchema), async (req, res) => {
+  app.post("/api/analyze", validate(analyzeSchema), optionalAuth, scanQuota, async (req, res) => {
     try {
       let { type, value, title, url } = req.body;
       if (url && !value) { value = url; type = 'website'; }
@@ -633,7 +636,7 @@ async function startServer() {
   });
 
   // Translation endpoint
-  app.post("/api/translate", validate(translateSchema), async (req, res) => {
+  app.post("/api/translate", rateLimit(30, 60000, 'translate'), validate(translateSchema), async (req, res) => {
     try {
       const { text, targetLanguage } = req.body;
       if (!text || !targetLanguage) return res.status(400).json({ error: "Text and targetLanguage are required" });
@@ -645,7 +648,7 @@ async function startServer() {
   });
 
   // Batch translation endpoint
-  app.post("/api/translate-batch", validate(translateBatchSchema), async (req, res) => {
+  app.post("/api/translate-batch", rateLimit(10, 60000, 'translate'), validate(translateBatchSchema), async (req, res) => {
     try {
       const { items, targetLanguage } = req.body;
       if (!items || !targetLanguage) return res.status(400).json({ error: "Items and targetLanguage are required" });
@@ -659,7 +662,7 @@ async function startServer() {
 
   // TTS voice narration
   const LANG_MAP: Record<string, string> = { English: 'en', Hausa: 'ha', Yoruba: 'en', Igbo: 'en', French: 'fr', German: 'de', Japanese: 'ja' };
-  app.post("/api/speak", validate(speakSchema), async (req, res) => {
+  app.post("/api/speak", rateLimit(20, 60000, 'speak'), validate(speakSchema), async (req, res) => {
     try {
       const { text, language } = req.body;
       if (!text || !language) return res.status(400).json({ error: "Text and language required." });
@@ -680,7 +683,7 @@ async function startServer() {
   });
 
   // OCR + Analysis endpoint for photo/contract uploads
-  app.post("/api/ocr-analyze", validate(ocrSchema), async (req, res) => {
+  app.post("/api/ocr-analyze", validate(ocrSchema), optionalAuth, scanQuota, async (req, res) => {
     try {
       const { image, useDirectImage } = req.body;
       if (!image) return res.status(400).json({ error: "Image (base64) required." });

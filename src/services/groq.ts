@@ -2,10 +2,18 @@ import { AnalysisResult } from "../types";
 
 const BASE_URL = "https://safroi.onrender.com";
 
+// Logged-in users send their token so scans count against their plan instead of the guest allowance.
+function authHeaders(): Record<string, string> {
+  try {
+    const token = JSON.parse(localStorage.getItem("safroi_user") || "null")?.token;
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  } catch { return {}; }
+}
+
 export async function analyzeWebsite(url: string): Promise<AnalysisResult> {
   const response = await fetch(`${BASE_URL}/api/analyze`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ type: "website", value: url })
   });
 
@@ -20,7 +28,7 @@ export async function analyzeWebsite(url: string): Promise<AnalysisResult> {
 export async function analyzeContract(text: string, title?: string): Promise<AnalysisResult> {
   const response = await fetch(`${BASE_URL}/api/analyze`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ type: "contract", value: text, title })
   });
 

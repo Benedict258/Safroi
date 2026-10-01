@@ -21,6 +21,7 @@ import paystackRouter from "./src/routes/paystack";
 import lemonsqueezyRouter from "./src/routes/lemonsqueezy";
 import documentsRouter from "./src/routes/documents";
 import { requireAuth, requireSelf, getJwtSecret } from "./src/middleware/auth";
+import { optionalAuth, scanQuota } from "./src/middleware/usage";
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -203,6 +204,8 @@ async function fetchWebsiteContent(inputUrl: string) {
 async function startServer() {
   validateEnv();
   const app = express();
+  // Behind Render's proxy every client would otherwise share one IP, so rate limits and quotas hit all users together.
+  app.set('trust proxy', 1);
 
   // Security headers
   app.use(securityHeaders);
@@ -337,7 +340,7 @@ Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string"
     try { (Analysis as any).findOneAndUpdate({ _id: `cache_${key}` }, { _id: `cache_${key}`, type: 'cache', userId: 'system', title: 'Cached', summary: '', risk_score: 0, risks: [], cachedResult: data, cacheExpiry: new Date(Date.now() + 86400000) }, { upsert: true, returnDocument: 'after' }); } catch {}
   }
 
-  app.post("/api/analyze", validate(analyzeSchema), async (req, res) => {
+  app.post("/api/analyze", validate(analyzeSchema), optionalAuth, scanQuota, async (req, res) => {
     try {
       let { type, value, title, url } = req.body;
       if (url && !value) { value = url; type = 'website'; }
@@ -403,7 +406,7 @@ Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string"
     } catch (err) { res.status(500).json({ error: err instanceof Error ? err.message : "Analysis failed." }); }
   });
 
-  app.post("/api/translate", validate(translateSchema), async (req, res) => {
+  app.post("/api/translate", rateLimit(30, 60000, 'translate'), validate(translateSchema), async (req, res) => {
     try {
       const { text, targetLanguage } = req.body;
       if (!text || !targetLanguage) return res.status(400).json({ error: "Text and language required." });
@@ -413,7 +416,7 @@ Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string"
 
   // TTS — Google Translate free TTS (no API key needed)
   const LANG_MAP: Record<string, string> = { English: 'en', Hausa: 'ha', Yoruba: 'en', Igbo: 'en', French: 'fr', German: 'de', Japanese: 'ja' };
-  app.post("/api/speak", validate(speakSchema), async (req, res) => {
+  app.post("/api/speak", rateLimit(20, 60000, 'speak'), validate(speakSchema), async (req, res) => {
     try {
       const { text, language } = req.body;
       if (!text || !language) return res.status(400).json({ error: "Text and language required." });
@@ -434,7 +437,7 @@ Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string"
     } catch { res.status(500).json({ error: "TTS failed." }); }
   });
 
-  app.post("/api/ocr-analyze", validate(ocrSchema), async (req, res) => {
+  app.post("/api/ocr-analyze", validate(ocrSchema), optionalAuth, scanQuota, async (req, res) => {
     try {
       const { image, useDirectImage } = req.body;
       if (!image) return res.status(400).json({ error: "Image required." });

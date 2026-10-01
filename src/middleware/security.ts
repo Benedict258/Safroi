@@ -26,14 +26,15 @@ export function corsStrict(origin: string | undefined, callback: (err: Error | n
 
 const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
 
-export function rateLimit(maxRequests: number = 30, windowMs: number = 60000) {
+export function rateLimit(maxRequests: number = 30, windowMs: number = 60000, scope: string = 'api') {
   return (req: Request, res: Response, next: NextFunction) => {
     const ip = req.ip || req.socket.remoteAddress || 'unknown';
+    const key = `${scope}:${ip}`;
     const now = Date.now();
-    const entry = rateLimitStore.get(ip);
+    const entry = rateLimitStore.get(key);
 
     if (!entry || now > entry.resetAt) {
-      rateLimitStore.set(ip, { count: 1, resetAt: now + windowMs });
+      rateLimitStore.set(key, { count: 1, resetAt: now + windowMs });
       return next();
     }
 

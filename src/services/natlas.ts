@@ -7,7 +7,7 @@ export const NATLAS_LANGUAGES = new Set(['Hausa', 'Yoruba', 'Igbo']);
 // Model context is ~8k tokens; keep inputs well under it.
 export const NATLAS_MAX_INPUT_CHARS = 6000;
 
-const COOLDOWN_MS = 60_000;
+const cooldownMs = () => Number(process.env.NATLAS_COOLDOWN_MS ?? 60_000);
 let downUntil = 0;
 
 export function natlasConfigured(): boolean {
@@ -46,7 +46,7 @@ export async function natlasChat(
     return String(text);
   } catch (err) {
     // 4xx from our own server (e.g. input too long) is the request's fault, not an outage.
-    if (!(err instanceof Error && /HTTP 4\d\d/.test(err.message))) downUntil = Date.now() + COOLDOWN_MS;
+    if (!(err instanceof Error && /HTTP 4\d\d/.test(err.message))) downUntil = Date.now() + cooldownMs();
     throw err;
   } finally {
     clearTimeout(timer);

@@ -109,3 +109,11 @@ const analysisSchema = new mongoose.Schema({
 
 analysisSchema.index({ userId: 1, created_at: -1 });
 export const Analysis = mongoose.models.Analysis || mongoose.model('Analysis', analysisSchema);
+
+// Per-subject scan counters (subject = user id or IP) for plan quotas. Expires automatically after the period.
+const usageSchema = new mongoose.Schema({
+  _id: { type: String, required: true },
+  count: { type: Number, default: 0 },
+  expiresAt: { type: Date, required: true, index: { expires: 0 } },
+});
+export const Usage = mongoose.models.Usage || mongoose.model('Usage', usageSchema);
