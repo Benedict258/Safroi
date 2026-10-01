@@ -12,7 +12,7 @@ import { connectDB, isDbConnected } from "./src/db/index";
 import { User, Analysis } from "./src/db/models";
 import { userStore } from "./src/services/userStore";
 import { analysisStore } from "./src/services/analysisStore";
-import { ocrImage, highlightImage, type ClauseLocation } from "./src/ocr/index";
+import { ocrImage, highlightImage, decodeImageInput, InvalidImageError, type ClauseLocation } from "./src/ocr/index";
 import { analyzeText, analyzeImage, translateText, translateBatch } from "./src/services/ai";
 import { generateResetToken, hashResetToken, sendPasswordResetEmail } from "./src/services/email";
 import { securityHeaders, corsStrict, rateLimit, rateLimitAuth } from "./src/middleware/security";
@@ -20,9 +20,10 @@ import { validate, signupSchema, loginSchema, resetSchema, resetConfirmSchema, a
 import paystackRouter from "./src/routes/paystack";
 import lemonsqueezyRouter from "./src/routes/lemonsqueezy";
 import documentsRouter from "./src/routes/documents";
+import { requireAuth, requireSelf, getJwtSecret } from "./src/middleware/auth";
 import bcrypt from "bcryptjs";
 
-const JWT_SECRET = process.env.JWT_SECRET || 'safroi-dev-jwt-secret-key-change-in-prod';
+const JWT_SECRET = getJwtSecret();
 
 function signToken(userId: string) {
   return jwt.sign({ userId }, JWT_SECRET, { expiresIn: '30d' });
@@ -685,9 +686,7 @@ async function startServer() {
       const { image, useDirectImage } = req.body;
       if (!image) return res.status(400).json({ error: "Image (base64) required." });
 
-      const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
-      const imageBuffer = Buffer.from(base64Data, 'base64');
-      const mimeType = image.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
+      const { buffer: imageBuffer, base64: base64Data, mimeType } = await decodeImageInput(image);
 
       console.log(`[OCR] Processing image (${(imageBuffer.length / 1024).toFixed(1)} KB)...`);
 
@@ -727,18 +726,23 @@ async function startServer() {
         clauseLocations, pageCount: ocrResult?.pageCount || 1,
       });
     } catch (err) {
+      if (err instanceof InvalidImageError) return res.status(400).json({ error: err.message });
       console.error("[OCR] Error:", err);
       res.status(500).json({ error: err instanceof Error ? err.message : "OCR/Analysis failed." });
     }
   });
 
   // History API (MongoDB-backed with in-memory fallback)
-  app.post("/api/history", async (req, res) => {
+  app.post("/api/history", requireAuth, async (req, res) => {
     try {
-      const { userId, analysis } = req.body;
+      const userId = (req as any).user.uid;
+      const { analysis } = req.body;
       if (!userId || !analysis) return res.status(400).json({ error: "userId and analysis required" });
+      const id = analysis.id || crypto.randomUUID();
+      const existing = await analysisStore.findById(id, userId);
+      if (!existing && await analysisStore.findById(id)) return res.status(409).json({ error: "Analysis id already in use" });
       const record = {
-        _id: analysis.id || crypto.randomUUID(),
+        _id: id,
         userId,
         type: analysis.type,
         title: analysis.title,
@@ -753,7 +757,6 @@ async function startServer() {
       };
 
       await analysisStore.saveAnalysis(record);
-      await userStore.updateUser(userId, { _id: userId, email: userId, displayName: userId });
 
       res.json({ saved: true });
     } catch (err) {
@@ -762,7 +765,7 @@ async function startServer() {
     }
   });
 
-  app.get("/api/history/:userId", async (req, res) => {
+  app.get("/api/history/:userId", requireAuth, requireSelf, async (req, res) => {
     try {
       const items = await analysisStore.findByUser(req.params.userId);
       res.json(items);
@@ -772,7 +775,7 @@ async function startServer() {
     }
   });
 
-  app.get("/api/history/:userId/:id", async (req, res) => {
+  app.get("/api/history/:userId/:id", requireAuth, requireSelf, async (req, res) => {
     try {
       const item = await analysisStore.findById(req.params.id, req.params.userId);
       if (!item) return res.status(404).json({ error: "Not found" });
@@ -783,7 +786,7 @@ async function startServer() {
     }
   });
 
-  app.delete("/api/history/:userId/:id", async (req, res) => {
+  app.delete("/api/history/:userId/:id", requireAuth, requireSelf, async (req, res) => {
     try {
       await analysisStore.deleteById(req.params.id, req.params.userId);
       res.json({ deleted: true });
