@@ -31,6 +31,8 @@ export interface NimChatOptions {
   temperature?: number;
   maxTokens?: number;
   timeoutMs?: number;
+  /** The SDK retries once by default, doubling the worst-case wait; interactive calls like translation set 0. */
+  maxRetries?: number;
   /** Reasoning models spend the token budget on hidden thinking; off by default for fast, direct output. */
   thinking?: boolean;
 }
@@ -48,7 +50,7 @@ export async function nimChat(
     stream: false,
   };
   if (!opts.thinking) body.chat_template_kwargs = { enable_thinking: false };
-  const completion = await getClient().chat.completions.create(body, { timeout: opts.timeoutMs ?? 90_000 });
+  const completion = await getClient().chat.completions.create(body, { timeout: opts.timeoutMs ?? 90_000, maxRetries: opts.maxRetries });
   const text = (completion as any).choices?.[0]?.message?.content;
   if (!text || !String(text).trim()) throw new Error(`NIM model ${model} returned empty content`);
   return String(text);

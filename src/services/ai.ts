@@ -141,7 +141,7 @@ export async function translateWithMeta(text: string, targetLanguage: string): P
   // 2) NVIDIA NIM general model (the reasoning analysis model is not used here: its Hausa/Yoruba/Igbo is poor)
   if (!result && nimConfigured()) {
     try {
-      const out = cleanTranslationOutput(await nimChat(messages, { model: NIM_MODELS.fallback, maxTokens, timeoutMs: 60_000 }), '');
+      const out = cleanTranslationOutput(await nimChat(messages, { model: NIM_MODELS.fallback, maxTokens, timeoutMs: 45_000, maxRetries: 0 }), '');
       if (out) result = { translatedText: out, provider: 'nim' };
     } catch (err) { warn('NIM translate', err); }
   }
