@@ -88,7 +88,7 @@ export const analysisStore = {
     if (isDbConnected()) {
       try {
         await (Analysis as any).findOneAndUpdate(
-          { _id: record._id },
+          { _id: record._id, userId: record.userId },
           record,
           { upsert: true, new: true }
         );

@@ -10,7 +10,7 @@ import AdmZip from "adm-zip";
 import { connectDB } from "./src/db/index";
 import { User, Analysis } from "./src/db/models";
 import mongoose from "mongoose";
-import { ocrImage, highlightImage, type ClauseLocation } from "./src/ocr/index";
+import { ocrImage, highlightImage, decodeImageInput, InvalidImageError, type ClauseLocation } from "./src/ocr/index";
 import { analyzeText, analyzeImage, translateText } from "./src/services/ai";
 import { generateResetToken, hashResetToken, sendPasswordResetEmail } from "./src/services/email";
 import { securityHeaders, corsStrict, rateLimit, rateLimitAuth } from "./src/middleware/security";
@@ -18,6 +18,7 @@ import { validate, signupSchema, loginSchema, resetSchema, resetConfirmSchema, a
 import paystackRouter from "./src/routes/paystack";
 import lemonsqueezyRouter from "./src/routes/lemonsqueezy";
 import documentsRouter from "./src/routes/documents";
+import { requireAuth, requireSelf, getJwtSecret } from "./src/middleware/auth";
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -436,15 +437,14 @@ Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string"
     try {
       const { image, useDirectImage } = req.body;
       if (!image) return res.status(400).json({ error: "Image required." });
-      const base64 = image.replace(/^data:image\/\w+;base64,/, '');
-      const mime = image.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
+      const { buffer: imageBuffer, base64, mimeType: mime } = await decodeImageInput(image);
       const prompt = `You are a contract detective protecting gig workers and tenants. Analyze this contract photo. Return ONLY valid JSON (no markdown): {"summary":"string","risk_score":number(1-10),"risks":[{"clause":"string","risk":"string","severity":"low|medium|high","plain_explanation":"string","impact_line":"string","category_tag":"string"}],"actions":[{"title":"string","advice":"string","urgency":"string"}]}`;
       let raw: string;
       let ocrResult: { text: string; words: any[]; pageCount: number } | null = null;
       if (useDirectImage) {
         raw = await analyzeImage(base64, mime, prompt);
       } else {
-        ocrResult = await ocrImage(Buffer.from(base64, 'base64'));
+        ocrResult = await ocrImage(imageBuffer);
         console.log(`[OCR] Extracted ${ocrResult.text.length} chars from ${ocrResult.pageCount} page(s)`);
         raw = await analyzeText(`Analyze this employment contract or lease. Return ONLY valid JSON with summary, risk_score, risks[{clause,risk,severity,plain_explanation,impact_line,category_tag}].\n\nCONTRACT TEXT:\n${ocrResult.text}`);
       }
@@ -455,7 +455,7 @@ Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string"
       if (ocrResult && !useDirectImage) {
         const clauses = risks.map((r: any) => ({ text: r.title || r.description || '', severity: (r.severity || 'medium') as 'low' | 'medium' | 'high' }));
         const { locations } = await highlightImage(
-          Buffer.from(base64, 'base64'),
+          imageBuffer,
           ocrResult.words,
           clauses
         );
@@ -467,7 +467,10 @@ Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string"
         summary: parsed.summary, risk_score: parsed.risk_score || 1, risks, path: useDirectImage ? 'multimodal' : 'ocr',
         clauseLocations, pageCount: ocrResult?.pageCount || 1,
       });
-    } catch (err) { res.status(500).json({ error: err instanceof Error ? err.message : "OCR failed." }); }
+    } catch (err) {
+      if (err instanceof InvalidImageError) return res.status(400).json({ error: err.message });
+      res.status(500).json({ error: err instanceof Error ? err.message : "OCR failed." });
+    }
   });
 
   app.get("/api/download-extension", (_, res) => {
@@ -483,23 +486,24 @@ Schema: {"summary":"string","risk_score":number(1-10),"risks":[{"title":"string"
   });
 
   // History
-  app.post("/api/history", async (req, res) => {
+  app.post("/api/history", requireAuth, async (req, res) => {
     try {
-      const { userId, analysis } = req.body;
+      const userId = (req as any).user.uid;
+      const { analysis } = req.body;
       if (!userId || !analysis) return res.status(400).json({ error: "userId and analysis required." });
-      await (Analysis as any).findOneAndUpdate({ _id: analysis.id }, { _id: analysis.id, userId, type: analysis.type, title: analysis.title, url: analysis.url, summary: analysis.summary, risk_score: analysis.risk_score, risks: analysis.risks || [], key_points: analysis.key_points, original_text: analysis.original_text }, { upsert: true, returnDocument: 'after' });
+      await (Analysis as any).findOneAndUpdate({ _id: analysis.id, userId }, { _id: analysis.id, userId, type: analysis.type, title: analysis.title, url: analysis.url, summary: analysis.summary, risk_score: analysis.risk_score, risks: analysis.risks || [], key_points: analysis.key_points, original_text: analysis.original_text }, { upsert: true, returnDocument: 'after' });
       res.json({ saved: true });
     } catch { res.status(500).json({ error: "Save failed." }); }
   });
-  app.get("/api/history/:userId", async (req, res) => {
+  app.get("/api/history/:userId", requireAuth, requireSelf, async (req, res) => {
     try { const items = await Analysis.find({ userId: req.params.userId } as any).select('_id type title url risk_score created_at').sort({ created_at: -1 }).limit(50); res.json(items); }
     catch { res.status(500).json({ error: "Fetch failed." }); }
   });
-  app.get("/api/history/:userId/:id", async (req, res) => {
+  app.get("/api/history/:userId/:id", requireAuth, requireSelf, async (req, res) => {
     try { const item = await Analysis.findOne({ _id: req.params.id, userId: req.params.userId } as any); if (!item) return res.status(404).json({ error: "Not found." }); res.json(item); }
     catch { res.status(500).json({ error: "Fetch failed." }); }
   });
-  app.delete("/api/history/:userId/:id", async (req, res) => {
+  app.delete("/api/history/:userId/:id", requireAuth, requireSelf, async (req, res) => {
     try { await Analysis.deleteOne({ _id: req.params.id, userId: req.params.userId } as any); res.json({ deleted: true }); }
     catch { res.status(500).json({ error: "Delete failed." }); }
   });

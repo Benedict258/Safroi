@@ -1,5 +1,7 @@
 import sharp, { type OverlayOptions } from 'sharp';
 import { createWorker } from 'tesseract.js';
+import fs from 'fs';
+import path from 'path';
 
 export interface WordBox {
   text: string;
@@ -28,14 +30,22 @@ interface PageOcrResult {
 }
 
 let worker: Awaited<ReturnType<typeof createWorker>> | null = null;
+let workerPromise: Promise<Awaited<ReturnType<typeof createWorker>>> | null = null;
+
+// Language data ships in node_modules so OCR never depends on a CDN at runtime.
+const LOCAL_LANG_PATH = path.join(process.cwd(), 'node_modules', '@tesseract.js-data', 'eng', '4.0.0_best_int');
 
 async function getWorker() {
-  if (!worker) {
-    worker = await createWorker('eng', 1, {
+  if (worker) return worker;
+  if (!workerPromise) {
+    workerPromise = createWorker('eng', 1, {
+      ...(fs.existsSync(path.join(LOCAL_LANG_PATH, 'eng.traineddata.gz')) ? { langPath: LOCAL_LANG_PATH, cacheMethod: 'none' } : {}),
       logger: m => { if (m.status === 'recognizing text') console.log(`[OCR] ${Math.round(m.progress * 100)}%`); },
-    });
+      // Worker-thread errors are otherwise thrown uncaught and crash the process.
+      errorHandler: err => { console.error('[OCR] Worker error:', err); worker = null; workerPromise = null; },
+    }).then(w => { worker = w; return w; }).catch(err => { workerPromise = null; throw err; });
   }
-  return worker;
+  return workerPromise;
 }
 
 async function preprocessImage(buffer: Buffer): Promise<Buffer> {
@@ -240,5 +250,25 @@ export async function shutdownWorker() {
   if (worker) {
     await worker.terminate();
     worker = null;
+    workerPromise = null;
+  }
+}
+
+export class InvalidImageError extends Error {}
+
+/** Decode base64 image input; throws InvalidImageError for corrupt or unsupported images. */
+export async function decodeImageInput(image: string): Promise<{ buffer: Buffer; base64: string; mimeType: string }> {
+  const base64 = image.replace(/^data:image\/[\w.+-]+;base64,/, '');
+  const buffer = Buffer.from(base64, 'base64');
+  if (buffer.length === 0) throw new InvalidImageError('Image data is empty.');
+  try {
+    const meta = await sharp(buffer).metadata();
+    if (!meta.format || !['png', 'jpeg', 'webp', 'gif', 'tiff'].includes(meta.format)) {
+      throw new InvalidImageError('Unsupported image format. Use PNG, JPEG or WebP.');
+    }
+    return { buffer, base64, mimeType: `image/${meta.format}` };
+  } catch (err) {
+    if (err instanceof InvalidImageError) throw err;
+    throw new InvalidImageError('Invalid or corrupt image. Please upload a clear PNG or JPEG photo.');
   }
 }
