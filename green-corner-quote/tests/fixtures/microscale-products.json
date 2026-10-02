@@ -1,0 +1,19 @@
+{
+  "products": [
+    {
+      "id": 1, "title": "Arduino Uno R3", "handle": "arduino-uno-r3", "updated_at": "2026-10-01T10:00:00+01:00",
+      "variants": [{ "id": 11, "title": "Default Title", "sku": "ARD-UNO-R3", "price": "12500.00", "available": true }]
+    },
+    {
+      "id": 2, "title": "Waterproof Project Case", "handle": "waterproof-project-case",
+      "variants": [
+        { "id": 21, "title": "Small", "sku": "CASE-S", "price": "9800.00", "available": true },
+        { "id": 22, "title": "Large", "sku": "CASE-L", "price": "14200.00", "available": false }
+      ]
+    },
+    {
+      "id": 3, "title": "Jumper Wires 40pcs", "handle": "jumper-wires-40",
+      "variants": [{ "id": 31, "title": "Default Title", "sku": "", "price": "0.00", "available": true }]
+    }
+  ]
+}

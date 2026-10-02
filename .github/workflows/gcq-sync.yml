@@ -1,0 +1,43 @@
+name: Green Corner price sync
+
+on:
+  schedule:
+    # Hourly. The script only runs a sync when a time from Settings (default 06:00 and 18:00 Lagos) is due,
+    # so a delayed or skipped GitHub run is picked up on the next hour.
+    - cron: "5 * * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Sync both suppliers now, ignoring the schedule"
+        type: boolean
+        default: false
+
+concurrency:
+  group: gcq-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: green-corner-quote
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: green-corner-quote/package-lock.json
+      - run: npm ci
+      - name: Sync
+        env:
+          DATABASE_URL: ${{ secrets.GCQ_DATABASE_URL }}
+          SYNC_CONTACT: ${{ vars.GCQ_SYNC_CONTACT }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.force }}" = "true" ]; then
+            npm run sync
+          else
+            npm run sync -- --scheduled
+          fi
